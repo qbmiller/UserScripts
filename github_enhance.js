@@ -1026,8 +1026,11 @@ function isMobileDevice() {
         //     ${data.homepage ? `<p><strong>主页:</strong> <a href="${data.homepage}" target="_blank">${data.homepage}</a></p>` : ''}
         // `;
         // 使用 Grid 布局的新内容结构
+        //     <h3 style="margin-top: 0; grid-column: 1 / -1; margin-bottom: 15px;">📊 ${data.full_name}</h3>
         const content = `
-            <h3 style="margin-top: 0; grid-column: 1 / -1; margin-bottom: 15px;">📊 ${data.full_name}</h3>
+        <h3 style="margin-top: 0; grid-column: 1 / -1; margin-bottom: 15px;">📊
+    <a href="https://github.com/${data.full_name}" target="_blank">${data.full_name}</a>
+</h3>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                 <div class="info-column" style="border-right: 1px solid #e1e4e8; padding-right: 16px;">
                     <p style="margin-top: 0;"><strong>描述:</strong> ${data.description || '暂无描述'}</p>
