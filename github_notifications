@@ -1,0 +1,584 @@
+// ==UserScript==
+// @name              GitHub Notification Repo Info
+// @name:zh-CN        GitHub 通知仓库信息显示
+// @description       Display repository information on GitHub notification pages
+// @description:zh-CN 在 GitHub 通知页面显示仓库详细信息
+// @namespace         https://github.com/ChinaGodMan/UserScripts
+// @version           1.0.0
+// @author            人民的勤务员 <china.qinwuyuan@gmail.com>
+// @match             https://github.com/notifications*
+// @grant             GM_getValue
+// @grant             GM_setValue
+// @grant             GM_addStyle
+// @grant             GM_xmlhttpRequest
+// @grant             GM_registerMenuCommand
+// @icon              data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiI+PHBhdGggZD0iTTggMGE4IDggMCAxIDEgMCAxNkE4IDggMCAwIDEgOCAwem0zLjUgNy41TDggMTFsLTMuNS0zLjUgMS0xTDggOWwyLjUtMi41IDEgMXoiLz48L3N2Zz4=
+// @license           MIT
+// @run-at            document-idle
+// @connect           api.github.com
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // ==================== 配置管理 ====================
+    let PAT_GITHUB_TOKEN = GM_getValue('githubToken', '');
+
+    // 翻译字典
+    const translations = {
+        en: {
+            repoSize: 'Repository size:',
+            repoDes: 'Description:',
+            repoLang: 'Primary language:',
+            repoCreated: 'Created:',
+            repoUpdated: 'Updated:',
+            repoPushed: 'Pushed:',
+            repoForks: 'Forks:',
+            repoStars: 'Stars:',
+            repoWatcher: 'Watchers:',
+            repoLicense: 'License:',
+            repoPage: 'HomePage:',
+            repoTotal: 'Statistics:',
+            setToken: 'Set GitHub Token',
+            tokenDesc: 'Enter your GitHub personal access token to increase API rate limit.',
+            createToken: 'Create new token',
+            save: 'Save',
+            cancel: 'Cancel',
+            loading: 'Loading project information...',
+            error: 'Failed to load project information',
+            networkError: 'Network error, please check your connection'
+        },
+        'zh-CN': {
+            repoSize: '仓库大小：',
+            repoDes: '仓库简介：',
+            repoLang: '主要语言：',
+            repoPage: '主页：',
+            repoTotal: '统计：',
+            repoLicense: '开源协议：',
+            repoCreated: '创建时间：',
+            repoUpdated: '最后更新：',
+            repoPushed: '最后推送：',
+            repoForks: '复刻：',
+            repoStars: '星标：',
+            repoWatcher: '关注者：',
+            setToken: '设置 GitHub Token',
+            tokenDesc: '输入您的 GitHub 个人访问令牌以提高 API 速率限制。',
+            createToken: '创建新令牌',
+            save: '保存',
+            cancel: '取消',
+            loading: '加载项目信息中...',
+            error: '加载项目信息失败',
+            networkError: '网络错误，请检查网络连接'
+        }
+    };
+
+    const userLang = (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
+    const t = translations[userLang.startsWith('zh') ? 'zh-CN' : 'en'];
+
+    // ==================== 样式注入 ====================
+    GM_addStyle(`
+        #github-project-info {
+            padding: 15px;
+            margin: 10px 0;
+            background-color: #f6f8fa;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        #github-project-info h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        #github-project-info h3 a {
+            text-decoration: none;
+            color: #0969da;
+        }
+
+        #github-project-info h3 a:hover {
+            text-decoration: underline;
+        }
+
+        #github-project-info .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        #github-project-info .info-column {
+            padding: 0 8px;
+        }
+
+        #github-project-info .info-column:first-child {
+            border-right: 1px solid #e1e4e8;
+        }
+
+        #github-project-info p {
+            margin: 8px 0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        #github-project-info strong {
+            color: #24292f;
+            font-weight: 600;
+        }
+
+        #github-project-info .stats {
+            margin-left: 20px;
+            line-height: 1.8;
+        }
+
+        #github-project-info .loading,
+        #github-project-info .error {
+            text-align: center;
+            padding: 20px;
+            font-size: 14px;
+        }
+
+        #github-project-info .error {
+            color: #d73a49;
+        }
+
+        /* 暗黑模式支持 */
+        @media (prefers-color-scheme: dark) {
+            #github-project-info {
+                background-color: #0d1117;
+                border-color: #30363d;
+                color: #c9d1d9;
+            }
+
+            #github-project-info h3 a {
+                color: #58a6ff;
+            }
+
+            #github-project-info .info-column:first-child {
+                border-right-color: #30363d;
+            }
+
+            #github-project-info strong {
+                color: #c9d1d9;
+            }
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            #github-project-info .info-grid {
+                grid-template-columns: 1fr !important;
+            }
+
+            #github-project-info .info-column:first-child {
+                border-right: none !important;
+                border-bottom: 1px solid #e1e4e8;
+                padding-bottom: 16px !important;
+            }
+
+            #github-project-info .info-column:last-child {
+                padding-top: 16px !important;
+            }
+        }
+
+        /* Token 设置模态框 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .modal-title {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-description {
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .modal-description a {
+            color: #0969da;
+            text-decoration: underline;
+        }
+
+        .github-token-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .modal-button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .modal-button.primary {
+            background-color: #2ea44f;
+            color: white;
+        }
+
+        .modal-button.secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+    `);
+
+    // ==================== 工具函数 ====================
+
+    // 等待元素出现
+    function waitForElement(selector, timeout = 10000) {
+        return new Promise((resolve, reject) => {
+            const element = document.querySelector(selector);
+            if (element) {
+                resolve(element);
+                return;
+            }
+
+            const observer = new MutationObserver(() => {
+                const element = document.querySelector(selector);
+                if (element) {
+                    observer.disconnect();
+                    clearTimeout(timeoutId);
+                    resolve(element);
+                }
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+
+            const timeoutId = setTimeout(() => {
+                observer.disconnect();
+                reject(new Error(`元素 ${selector} 未找到`));
+            }, timeout);
+        });
+    }
+
+    // 从 URL 获取仓库信息
+    function getRepoFromUrl() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const repoQuery = urlParams.get('query');
+
+        if (!repoQuery) return null;
+
+        // 匹配 repo:owner/repo 格式
+        const repoMatch = repoQuery.match(/repo:([^/\s]+)\/([^\s]+?)(?:\s|$)/);
+
+        if (repoMatch) {
+            return {
+                owner: repoMatch[1],
+                repo: repoMatch[2].trim()
+            };
+        }
+
+        return null;
+    }
+
+    // 从链接提取仓库信息
+    function extractRepoInfo(url) {
+        try {
+            const urlObj = new URL(url);
+            const parts = urlObj.pathname.split('/').filter(p => p);
+
+            if (parts.length >= 2) {
+                return {
+                    owner: parts[0],
+                    name: parts[1]
+                };
+            }
+        } catch (e) {
+            console.error('URL 解析失败:', url, e);
+        }
+
+        return null;
+    }
+
+    // ==================== 项目信息缓存 ====================
+    const projectInfoCache = new Map();
+    const CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
+
+    // ==================== UI 更新函数 ====================
+
+    // 创建信息展示元素
+    function createInfoElement() {
+        const infoDiv = document.createElement('div');
+        infoDiv.id = 'github-project-info';
+        return infoDiv;
+    }
+
+    // 更新项目信息显示
+    function updateProjectInfo(data) {
+        let infoDiv = document.getElementById('github-project-info');
+
+        if (!infoDiv) {
+            infoDiv = createInfoElement();
+            const notificationsList = document.querySelector('.notifications-list');
+            if (notificationsList) {
+                notificationsList.parentNode.insertBefore(infoDiv, notificationsList);
+            } else {
+                const mainContent = document.querySelector('main') || document.body;
+                mainContent.insertBefore(infoDiv, mainContent.firstChild);
+            }
+        }
+
+        // 加载状态
+        if (!data) {
+            infoDiv.innerHTML = `<p class="loading">⏳ ${t.loading}</p>`;
+            return;
+        }
+
+        // 错误状态
+        if (data.error) {
+            infoDiv.innerHTML = `<p class="error">⚠️ ${data.message || t.error}</p>`;
+            return;
+        }
+
+        // 正常显示
+        const content = `
+            <h3>📊 <a href="https://github.com/${data.full_name}" target="_blank">${data.full_name}</a></h3>
+            <div class="info-grid">
+                <div class="info-column">
+                    <p><strong>${t.repoDes}</strong> ${data.description || 'None'}</p>
+                    <p><strong>${t.repoTotal}</strong></p>
+                    <div class="stats">
+                        ⭐ ${t.repoStars} ${data.stargazers_count.toLocaleString()}<br>
+                        🍴 ${t.repoForks} ${data.forks_count.toLocaleString()}<br>
+                        👀 ${t.repoWatcher} ${data.watchers_count.toLocaleString()}
+                    </div>
+                </div>
+                <div class="info-column">
+                    <p><strong>${t.repoLang}</strong> ${data.language || 'None'}</p>
+                    <p><strong>${t.repoUpdated}</strong> ${new Date(data.updated_at).toLocaleString()}</p>
+                    <p><strong>${t.repoLicense}</strong> ${data.license ? data.license.name : 'None'}</p>
+                    ${data.homepage ? `<p><strong>${t.repoPage}</strong> <a href="${data.homepage}" target="_blank">${data.homepage}</a></p>` : ''}
+                </div>
+            </div>
+        `;
+
+        infoDiv.innerHTML = content;
+    }
+
+    // ==================== API 请求函数 ====================
+
+    // 获取项目信息
+    function fetchProjectInfo(owner, repo) {
+        const cacheKey = `${owner}/${repo}`;
+
+        // 检查缓存
+        const cached = projectInfoCache.get(cacheKey);
+        if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+            console.log('📦 使用缓存数据:', cacheKey);
+            updateProjectInfo(cached.data);
+            return;
+        }
+
+        // 显示加载状态
+        updateProjectInfo(null);
+
+        GM_xmlhttpRequest({
+            method: 'GET',
+            url: `https://api.github.com/repos/${owner}/${repo}`,
+            headers: {
+                'Authorization': PAT_GITHUB_TOKEN ? `token ${PAT_GITHUB_TOKEN}` : '',
+                'Accept': 'application/vnd.github.v3+json'
+            },
+            onload: function(response) {
+                try {
+                    if (response.status === 200) {
+                        const data = JSON.parse(response.responseText);
+
+                        // 缓存数据
+                        projectInfoCache.set(cacheKey, {
+                            data: data,
+                            timestamp: Date.now()
+                        });
+
+                        updateProjectInfo(data);
+                        console.log('✅ 项目信息获取成功:', cacheKey);
+                    } else {
+                        console.error('❌ API 返回错误:', response.status);
+                        updateProjectInfo({
+                            error: true,
+                            message: `${t.error} (${response.status})`
+                        });
+                    }
+                } catch (e) {
+                    console.error('❌ 解析失败:', e);
+                    updateProjectInfo({
+                        error: true,
+                        message: t.error
+                    });
+                }
+            },
+            onerror: function() {
+                console.error('❌ 网络请求失败');
+                updateProjectInfo({
+                    error: true,
+                    message: t.networkError
+                });
+            },
+            timeout: 10000
+        });
+    }
+
+    // ==================== 通知页面监听 ====================
+
+    // 设置悬停监听
+    function setupNotificationHoverListener() {
+        const notificationsList = document.querySelector('.notifications-list');
+        if (!notificationsList || notificationsList.hasAttribute('data-hover-listener')) {
+            return;
+        }
+
+        let lastRepoKey = null;
+        let debounceTimer = null;
+
+        notificationsList.addEventListener('mouseover', (event) => {
+            clearTimeout(debounceTimer);
+
+            debounceTimer = setTimeout(() => {
+                const li = event.target.closest('li.notifications-list-item');
+                if (!li) return;
+
+                const link = li.querySelector('.js-navigation-open');
+                if (!link) return;
+
+                const result = extractRepoInfo(link.href);
+                if (!result) return;
+
+                const repoKey = `${result.owner}/${result.name}`;
+
+                if (repoKey !== lastRepoKey) {
+                    console.log('🔍 鼠标悬停获取:', result);
+                    lastRepoKey = repoKey;
+                    fetchProjectInfo(result.owner, result.name);
+                }
+            }, 200);
+        });
+
+        notificationsList.setAttribute('data-hover-listener', 'true');
+        console.log('✅ 通知列表悬停监听已设置');
+    }
+
+    // ==================== Token 设置 ====================
+
+    // 创建 Token 设置模态框
+    function createTokenModal() {
+        const modalHTML = `
+            <div class="modal-overlay">
+                <div class="modal-content">
+                    <h3 class="modal-title">${t.setToken}</h3>
+                    <p class="modal-description">
+                        ${t.tokenDesc}
+                        <a href="https://github.com/settings/tokens/new?description=GitHub%20Notification%20Script&scopes=repo" target="_blank">
+                            ${t.createToken}
+                        </a>
+                    </p>
+                    <input type="text" id="github-token-input" class="github-token-input" placeholder="ghp_xxxxx..." value="${PAT_GITHUB_TOKEN}">
+                    <div class="modal-buttons">
+                        <button class="modal-button secondary" id="cancel-token">${t.cancel}</button>
+                        <button class="modal-button primary" id="save-token">${t.save}</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const modalContainer = document.createElement('div');
+        modalContainer.innerHTML = modalHTML;
+        document.body.appendChild(modalContainer);
+
+        modalContainer.querySelector('#save-token').addEventListener('click', () => {
+            const token = modalContainer.querySelector('#github-token-input').value.trim();
+            GM_setValue('githubToken', token);
+            PAT_GITHUB_TOKEN = token;
+            modalContainer.remove();
+            console.log('✅ Token 已保存');
+        });
+
+        modalContainer.querySelector('#cancel-token').addEventListener('click', () => {
+            modalContainer.remove();
+        });
+    }
+
+    // ==================== 初始化 ====================
+
+    // 主初始化函数
+    function init() {
+        console.log('🚀 GitHub 通知仓库信息脚本启动');
+
+        // 从 URL 获取仓库信息
+        const urlRepo = getRepoFromUrl();
+        if (urlRepo) {
+            console.log('📌 从 URL 获取仓库信息:', urlRepo);
+            fetchProjectInfo(urlRepo.owner, urlRepo.repo);
+        }
+
+        // 等待通知列表加载后设置悬停监听
+        waitForElement('.notifications-list')
+            .then(() => {
+                setupNotificationHoverListener();
+            })
+            .catch(err => {
+                console.warn('⚠️ 未找到通知列表:', err.message);
+            });
+    }
+
+    // 监听 URL 变化
+    let lastUrl = location.href;
+    new MutationObserver(() => {
+        const url = location.href;
+        if (url !== lastUrl) {
+            lastUrl = url;
+            setTimeout(init, 100);
+        }
+    }).observe(document, { subtree: true, childList: true });
+
+    // 注册菜单命令
+    GM_registerMenuCommand(t.setToken, createTokenModal);
+
+    // 页面加载完成后初始化
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+
+})();
