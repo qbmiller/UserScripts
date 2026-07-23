@@ -3,11 +3,12 @@
 // @namespace    https://zhuanlan.zhihu.com/
 // @version      1.1.0
 // @description  自动提取知乎专栏文章标题，在页面左侧显示可跟随阅读的目录。
-// @author       Codex
+// @author       https://github.com/qbmiller/UserScripts
 // @match        https://zhuanlan.zhihu.com/p/*
 // @match        https://zhuanlan.zhihu.com/*/p/*
 // @grant        none
 // @run-at       document-idle
+// @license MIT
 // ==/UserScript==
 
 (() => {
