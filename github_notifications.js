@@ -38,6 +38,7 @@
             repoWatcher: 'Watchers:',
             repoLicense: 'License:',
             repoPage: 'HomePage:',
+            forkList: 'forkList',
             repoTotal: 'Statistics:',
             setToken: 'Set GitHub Token',
             tokenDesc: 'Enter your GitHub personal access token to increase API rate limit.',
@@ -53,6 +54,7 @@
             repoDes: '仓库简介：',
             repoLang: '主要语言：',
             repoPage: '主页：',
+            forkList: 'forkList',
             repoTotal: '统计：',
             repoLicense: '开源协议：',
             repoCreated: '创建时间：',
@@ -145,6 +147,16 @@
 
         #github-project-info .error {
             color: #d73a49;
+        }
+
+        .github-repo-link {
+            margin-left: 6px;
+            white-space: nowrap;
+        }
+
+        .github-repo-links-fallback {
+            display: block;
+            margin-top: 8px;
         }
 
         /* 暗黑模式支持 */
@@ -331,6 +343,42 @@
         return null;
     }
 
+    // 在通知项的 Fork 操作旁添加 Fork 列表按钮。
+    function addRepoLinksToNotification(li, repo) {
+        if (!li || !repo || li.getAttribute('data-repo-links-added') === 'true') return;
+
+        const repoUrl = `https://github.com/${repo.owner}/${repo.name}`;
+        const forksLink = document.createElement('a');
+        forksLink.href = `${repoUrl}/forks`;
+        forksLink.target = '_blank';
+        forksLink.rel = 'noopener noreferrer';
+        forksLink.textContent = t.forkList;
+        forksLink.className = 'btn btn-sm github-repo-link';
+
+        const forkControl = Array.from(li.querySelectorAll('a, button')).find((element) => {
+            return /\bfork\b/i.test(element.textContent || '');
+        });
+
+        if (forkControl) {
+            forkControl.insertAdjacentElement('afterend', forksLink);
+        } else {
+            const fallback = document.createElement('span');
+            fallback.className = 'github-repo-links-fallback';
+            fallback.appendChild(forksLink);
+            li.appendChild(fallback);
+        }
+
+        li.setAttribute('data-repo-links-added', 'true');
+    }
+
+    function enhanceNotificationItems(notificationsList) {
+        notificationsList.querySelectorAll('li.notifications-list-item').forEach((li) => {
+            const link = li.querySelector('.js-navigation-open');
+            const repo = link && extractRepoInfo(link.href);
+            if (repo) addRepoLinksToNotification(li, repo);
+        });
+    }
+
     // ==================== 项目信息缓存 ====================
     const projectInfoCache = new Map();
     const CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
@@ -468,6 +516,10 @@
             return;
         }
 
+        enhanceNotificationItems(notificationsList);
+        const listObserver = new MutationObserver(() => enhanceNotificationItems(notificationsList));
+        listObserver.observe(notificationsList, { childList: true, subtree: true });
+
         let lastRepoKey = null;
         let debounceTimer = null;
 
@@ -483,6 +535,8 @@
 
                 const result = extractRepoInfo(link.href);
                 if (!result) return;
+
+                addRepoLinksToNotification(li, result);
 
                 const repoKey = `${result.owner}/${result.name}`;
 
