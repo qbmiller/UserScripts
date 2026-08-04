@@ -4,9 +4,10 @@
 // @description       Display repository information on GitHub notification pages
 // @description:zh-CN 在 GitHub 通知页面显示仓库详细信息
 // @namespace         https://github.com/ChinaGodMan/UserScripts
-// @version           1.0.0
+// @version           1.0.3
 // @author            人民的勤务员 <china.qinwuyuan@gmail.com>
 // @match             https://github.com/notifications*
+// @match             https://github.com/*/*
 // @grant             GM_getValue
 // @grant             GM_setValue
 // @grant             GM_addStyle
@@ -157,6 +158,51 @@
         .github-repo-links-fallback {
             display: block;
             margin-top: 8px;
+        }
+
+        /* 仿 GitHub 原生按钮外观，避免直接复用官方元素的 hash class
+           （随部署变化、且脱离原有 DOM 结构后经常错位）导致样式错乱 */
+        .github-forklist-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            height: 28px;
+            padding: 0 12px;
+            margin-left: 8px;
+            vertical-align: middle;
+            box-sizing: border-box;
+            font-size: 12px;
+            font-weight: 500;
+            line-height: 20px;
+            color: #24292f;
+            background-color: #f6f8fa;
+            border: 1px solid rgba(31, 35, 40, 0.15);
+            border-radius: 6px;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .github-forklist-btn svg {
+            fill: currentColor;
+        }
+
+        .github-forklist-btn:hover {
+            background-color: #f3f4f6;
+            border-color: rgba(31, 35, 40, 0.15);
+            color: #24292f;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .github-forklist-btn {
+                color: #c9d1d9;
+                background-color: #21262d;
+                border-color: rgba(240, 246, 252, 0.1);
+            }
+
+            .github-forklist-btn:hover {
+                background-color: #30363d;
+                color: #c9d1d9;
+            }
         }
 
         /* 暗黑模式支持 */
@@ -379,6 +425,84 @@
         });
     }
 
+    let repositoryForkObserver = null;
+
+    // 定位 GitHub 原生 Fork 按钮。
+    // GitHub 会不定期调整仓库头部的 DOM 结构（例如 2025 年起给 Fork 按钮加上了
+    // 下拉菜单），纯文本正则匹配容易失效，因此优先使用更稳定的属性/ID 选择器，
+    // 文本正则仅作为兜底方案。
+    function findForkControl() {
+        return (
+            document.querySelector('#fork-button') ||
+            document.querySelector('a[icon="repo-forked"], button[icon="repo-forked"]') ||
+            document.querySelector('a[href$="/fork"]') ||
+            Array.from(document.querySelectorAll('a, button')).find((element) => {
+                return /^\s*fork(?:s)?(?:\s+\d[\d,.k]*)?\s*$/i.test(element.textContent || '');
+            })
+        );
+    }
+
+    const FORK_ICON_SVG = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M5 5.372v.878c0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75v-.878a2.25 2.25 0 1 1 1.5 0v.878a2.25 2.25 0 0 1-2.25 2.25h-1.5v2.128a2.251 2.251 0 1 1-1.5 0V8.5h-1.5A2.25 2.25 0 0 1 3.5 6.25v-.878a2.25 2.25 0 1 1 1.5 0ZM5 3.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Zm6.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm-3 8.75a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z"></path></svg>';
+
+    // 找到 Fork 按钮所在的“整组”容器（按钮 + 下拉箭头），而不是组内的单个元素，
+    // 这样插入的新按钮才会作为独立一个胶囊排在整组后面，不会卡进原生按钮组中间。
+    function findForkGroupContainer(forkControl) {
+        let node = forkControl;
+        for (let i = 0; i < 4 && node && node.parentElement; i++) {
+            const parent = node.parentElement;
+            const cls = typeof parent.className === 'string' ? parent.className : '';
+            if (parent.tagName === 'LI' || parent.getAttribute('role') === 'group' || /btn-?group|buttongroup/i.test(cls)) {
+                return parent;
+            }
+            node = parent;
+        }
+        return forkControl;
+    }
+
+    // 在仓库主页的 Fork 按钮旁添加 Fork 列表按钮。
+    function setupRepositoryForkButton() {
+        const addButton = () => {
+            const pathParts = window.location.pathname.split('/').filter(Boolean);
+            if (pathParts.length !== 2) return false;
+
+            const repoKey = pathParts.join('/');
+            const existing = document.querySelector('[data-fork-list-button]');
+            if (existing) {
+                // 已经是当前仓库的按钮，无需重复插入。
+                if (existing.getAttribute('data-fork-list-button') === repoKey) return true;
+                // SPA(Turbo) 跳转后残留的旧仓库按钮，移除后重新插入。
+                existing.remove();
+            }
+
+            const forkControl = findForkControl();
+            if (!forkControl) return false;
+
+            const anchor = findForkGroupContainer(forkControl);
+
+            const button = document.createElement('a');
+            button.href = `https://github.com/${pathParts[0]}/${pathParts[1]}/forks`;
+            button.target = '_blank';
+            button.rel = 'noopener noreferrer';
+            button.className = 'github-forklist-btn';
+            button.innerHTML = `${FORK_ICON_SVG}<span>${t.forkList}</span>`;
+            button.setAttribute('data-fork-list-button', repoKey);
+            anchor.insertAdjacentElement('afterend', button);
+            return true;
+        };
+
+        addButton();
+
+        // GitHub 会局部重绘仓库头部，因此观察器和事件监听只需注册一次，
+        // 整个页面生命周期内保留即可。
+        if (repositoryForkObserver) return;
+        repositoryForkObserver = new MutationObserver(addButton);
+        repositoryForkObserver.observe(document.body, { childList: true, subtree: true });
+
+        // GitHub 现已使用 Turbo 做局部页面替换，额外监听其导航事件更可靠。
+        document.addEventListener('turbo:load', addButton);
+        document.addEventListener('turbo:render', addButton);
+    }
+
     // ==================== 项目信息缓存 ====================
     const projectInfoCache = new Map();
     const CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
@@ -597,6 +721,7 @@
     // 主初始化函数
     function init() {
         console.log('🚀 GitHub 通知仓库信息脚本启动');
+        setupRepositoryForkButton();
 
         // 从 URL 获取仓库信息
         const urlRepo = getRepoFromUrl();
