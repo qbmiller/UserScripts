@@ -4,7 +4,7 @@
 // @description       Display repository information on GitHub notification pages
 // @description:zh-CN 在 GitHub 通知页面显示仓库详细信息
 // @namespace         https://github.com/ChinaGodMan/UserScripts
-// @version           1.0.3
+// @version           1.0.4
 // @author            人民的勤务员 <china.qinwuyuan@gmail.com>
 // @match             https://github.com/notifications*
 // @match             https://github.com/*/*
@@ -148,16 +148,6 @@
 
         #github-project-info .error {
             color: #d73a49;
-        }
-
-        .github-repo-link {
-            margin-left: 6px;
-            white-space: nowrap;
-        }
-
-        .github-repo-links-fallback {
-            display: block;
-            margin-top: 8px;
         }
 
         /* 仿 GitHub 原生按钮外观，避免直接复用官方元素的 hash class
@@ -389,42 +379,6 @@
         return null;
     }
 
-    // 在通知项的 Fork 操作旁添加 Fork 列表按钮。
-    function addRepoLinksToNotification(li, repo) {
-        if (!li || !repo || li.getAttribute('data-repo-links-added') === 'true') return;
-
-        const repoUrl = `https://github.com/${repo.owner}/${repo.name}`;
-        const forksLink = document.createElement('a');
-        forksLink.href = `${repoUrl}/forks`;
-        forksLink.target = '_blank';
-        forksLink.rel = 'noopener noreferrer';
-        forksLink.textContent = t.forkList;
-        forksLink.className = 'btn btn-sm github-repo-link';
-
-        const forkControl = Array.from(li.querySelectorAll('a, button')).find((element) => {
-            return /\bfork\b/i.test(element.textContent || '');
-        });
-
-        if (forkControl) {
-            forkControl.insertAdjacentElement('afterend', forksLink);
-        } else {
-            const fallback = document.createElement('span');
-            fallback.className = 'github-repo-links-fallback';
-            fallback.appendChild(forksLink);
-            li.appendChild(fallback);
-        }
-
-        li.setAttribute('data-repo-links-added', 'true');
-    }
-
-    function enhanceNotificationItems(notificationsList) {
-        notificationsList.querySelectorAll('li.notifications-list-item').forEach((li) => {
-            const link = li.querySelector('.js-navigation-open');
-            const repo = link && extractRepoInfo(link.href);
-            if (repo) addRepoLinksToNotification(li, repo);
-        });
-    }
-
     let repositoryForkObserver = null;
 
     // 定位 GitHub 原生 Fork 按钮。
@@ -463,10 +417,15 @@
     function setupRepositoryForkButton() {
         const addButton = () => {
             const pathParts = window.location.pathname.split('/').filter(Boolean);
-            if (pathParts.length !== 2) return false;
+            const existing = document.querySelector('[data-fork-list-button]');
+
+            // 离开仓库主页时清理按钮，避免 Turbo 导航后残留到通知等页面。
+            if (pathParts.length !== 2) {
+                if (existing) existing.remove();
+                return false;
+            }
 
             const repoKey = pathParts.join('/');
-            const existing = document.querySelector('[data-fork-list-button]');
             if (existing) {
                 // 已经是当前仓库的按钮，无需重复插入。
                 if (existing.getAttribute('data-fork-list-button') === repoKey) return true;
@@ -640,10 +599,6 @@
             return;
         }
 
-        enhanceNotificationItems(notificationsList);
-        const listObserver = new MutationObserver(() => enhanceNotificationItems(notificationsList));
-        listObserver.observe(notificationsList, { childList: true, subtree: true });
-
         let lastRepoKey = null;
         let debounceTimer = null;
 
@@ -659,8 +614,6 @@
 
                 const result = extractRepoInfo(link.href);
                 if (!result) return;
-
-                addRepoLinksToNotification(li, result);
 
                 const repoKey = `${result.owner}/${result.name}`;
 
