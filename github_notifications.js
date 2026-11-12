@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name              GitHub Notification Repo Info
 // @name:zh-CN        GitHub 通知仓库信息显示
-// @description       Display repository information on GitHub notification pages
-// @description:zh-CN 在 GitHub 通知页面显示仓库详细信息
+// @description       Display notification repository info and Star controls on repository subpages
+// @description:zh-CN 在通知页面显示仓库信息，在仓库子页面显示 Star 状态并支持直接操作
 // @namespace         https://github.com/ChinaGodMan/UserScripts
-// @version           1.0.4
+// @version           1.0.6
 // @author            人民的勤务员 <china.qinwuyuan@gmail.com>
 // @match             https://github.com/notifications*
 // @match             https://github.com/*/*
@@ -48,6 +48,11 @@
             cancel: 'Cancel',
             loading: 'Loading project information...',
             error: 'Failed to load project information',
+            starLoading: 'Loading Star…',
+            starRetry: 'Retry Star',
+            starLogin: 'Sign in to Star',
+            starError: 'Unable to update Star. Click to retry.',
+            starConfirm: 'Unstar this repository? It will also be removed from your lists.',
             networkError: 'Network error, please check your connection'
         },
         'zh-CN': {
@@ -71,6 +76,11 @@
             cancel: '取消',
             loading: '加载项目信息中...',
             error: '加载项目信息失败',
+            starLoading: '加载 Star…',
+            starRetry: '重试加载 Star',
+            starLogin: '登录后 Star',
+            starError: 'Star 操作失败，请点击重试。',
+            starConfirm: '确定取消 Star？该仓库也会从你的星标列表中移除。',
             networkError: '网络错误，请检查网络连接'
         }
     };
@@ -194,6 +204,17 @@
                 color: #c9d1d9;
             }
         }
+
+        .github-repository-star {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+            margin-right: 8px;
+        }
+
+        .github-repository-star button { cursor: pointer; height: 32px; margin-left: 0; }
+        .github-repository-star button:disabled { cursor: wait; opacity: 0.65; }
+        .github-repository-star [aria-pressed="true"] { color: var(--fgColor-attention, #9a6700); }
 
         /* 暗黑模式支持 */
         @media (prefers-color-scheme: dark) {
@@ -462,6 +483,209 @@
         document.addEventListener('turbo:render', addButton);
     }
 
+    // ==================== 仓库子页面 Star ====================
+    let repositoryStarObserver = null;
+
+    // 使用仓库元数据确认身份，避免把 settings/profile 等二级路径当成仓库。
+    function getSubpageRepository() {
+        const parts = location.pathname.split('/').filter(Boolean);
+        const name = document.querySelector('meta[name="octolytics-dimension-repository_nwo"]')?.content;
+        if (parts.length < 3 || !name || name.toLowerCase() !== parts.slice(0, 2).join('/').toLowerCase()) return null;
+        return parts.slice(0, 2).join('/');
+    }
+
+    function parseRepositoryStar(doc, repoKey) {
+        const loggedIn = Boolean(doc.querySelector('meta[name="user-login"]')?.content);
+        const tokens = {};
+        let starData = null;
+        let count;
+        // GitHub 存在 React 首页、旧版首页、react-partial 等多种布局；
+        // 数据不一定直接位于 payload.sidebarAbout 下。
+        const visit = (value) => {
+            if (!value || typeof value !== 'object') return;
+            if (value.csrf_tokens) Object.assign(tokens, value.csrf_tokens);
+            if (typeof value.viewerHasStarred === 'boolean') starData = value;
+            if (Number.isFinite(value.stargazerCount)) count = value.stargazerCount;
+            for (const child of Object.values(value)) {
+                if (child && typeof child === 'object') visit(child);
+            }
+        };
+        for (const script of doc.querySelectorAll('script[type="application/json"]')) {
+            try { visit(JSON.parse(script.textContent)); } catch { /* 非仓库数据 */ }
+        }
+
+        // action 可能是绝对 URL、含查询参数或大小写与当前 URL 不同。
+        const forms = [...doc.querySelectorAll('form[action]')];
+        const findForm = (action) => forms.find(form => {
+            try {
+                const url = new URL(form.getAttribute('action'), location.origin);
+                return url.origin === location.origin &&
+                    url.pathname.replace(/\/$/, '').toLowerCase() === `/${repoKey}/${action}`.toLowerCase();
+            } catch { return false; }
+        });
+        const starForm = findForm('star');
+        const unstarForm = findForm('unstar');
+        if (starData) {
+            return {
+                loggedIn, starred: starData.viewerHasStarred,
+                canStar: starData.canStar !== false, count, tokens, starForm, unstarForm
+            };
+        }
+        if (!loggedIn) return { loggedIn: false };
+        if (starForm || unstarForm) {
+            // 旧版控件会同时包含两个表单，用共同容器上的 on 类切换状态。
+            // 不依赖某个固定外层类名：GitHub 曾调整 js-toggler-container。
+            let container = unstarForm || starForm;
+            while (container && starForm && unstarForm &&
+                !(container.contains(starForm) && container.contains(unstarForm))) {
+                container = container.parentElement;
+            }
+            const toggler = unstarForm?.closest('.js-toggler-container, starring-container') || container;
+            const starred = starForm && unstarForm
+                ? Boolean(toggler?.classList.contains('on') || toggler?.getAttribute('data-starred') === 'true')
+                : Boolean(unstarForm);
+            return { loggedIn, canStar: true, starred, tokens, starForm, unstarForm };
+        }
+        throw new Error('Star state not found (no repository Star data or forms in response)');
+    }
+
+    async function loadRepositoryStar(repoKey) {
+        // 登录后的新版 TanStack 页面不再输出 application/json 仓库数据，
+        // 直接读取 GitHub 自己使用的 sidebar 接口，避免解析或执行流式脚本。
+        const sidebarResponse = await fetch(`/${repoKey}/_sidebar/about`, {
+            credentials: 'same-origin', cache: 'no-store',
+            headers: { Accept: 'application/json', 'GitHub-Verified-Fetch': 'true' },
+            signal: AbortSignal.timeout(15000)
+        });
+        if (sidebarResponse.ok && sidebarResponse.headers.get('content-type')?.includes('application/json')) {
+            const about = await sidebarResponse.json();
+            if (typeof about?.star?.viewerHasStarred === 'boolean') {
+                return {
+                    loggedIn: Boolean(about.viewer?.isLoggedIn),
+                    starred: about.star.viewerHasStarred, canStar: about.star.canStar,
+                    count: about.stargazerCount, verifiedFetch: true
+                };
+            }
+        }
+        // 兼容尚未使用新版接口的仓库布局。
+        const response = await fetch(`/${repoKey}`, {
+            credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(15000)
+        });
+        if (!response.ok || new URL(response.url).pathname.replace(/\/$/, '').toLowerCase() !== `/${repoKey}`.toLowerCase()) {
+            throw new Error('Unable to load repository');
+        }
+        const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+        return parseRepositoryStar(doc, repoKey);
+    }
+
+    async function toggleRepositoryStar(repoKey, state, confirm = false) {
+        const action = `/${repoKey}/${state.starred ? 'unstar' : 'star'}`;
+        const form = state.starred ? state.unstarForm : state.starForm;
+        const token = state.tokens?.[action]?.post;
+        if (!form && !token && !state.verifiedFetch) throw new Error('Star CSRF token not found');
+        const body = form ? new URLSearchParams(new FormData(form)) : new URLSearchParams();
+        if (confirm) body.set('confirm', 'true');
+        const headers = { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+        if (token || state.verifiedFetch) headers['GitHub-Verified-Fetch'] = 'true';
+        if (token) headers['X-CSRF-Token'] = token;
+        const response = await fetch(action, {
+            method: 'POST', credentials: 'same-origin', headers, body,
+            signal: AbortSignal.timeout(15000)
+        });
+        if (response.status === 409 && state.starred && !confirm) {
+            if (window.confirm(t.starConfirm)) return toggleRepositoryStar(repoKey, state, true);
+            return;
+        }
+        if (!response.ok || response.redirected) throw new Error(`Star request failed (${response.status})`);
+    }
+
+    function setupRepositoryStarButton() {
+        const update = () => {
+            const repoKey = getSubpageRepository();
+            let wrapper = document.querySelector('[data-repository-star]');
+            // 已有原生控件的页面保持原样，防止出现两套按钮。
+            const nativeControl = document.querySelector('[data-testid="star-button"], .js-toggler-container.starring-container, form[action$="/unstar"]');
+            if (!repoKey || nativeControl) {
+                wrapper?.remove();
+                return;
+            }
+            if (wrapper?.dataset.repositoryStar === repoKey) return;
+            wrapper?.remove();
+            const searchButton = document.querySelector('header button[aria-label*="search" i], .AppHeader-search, [data-target="qbsearch-input.inputButton"]');
+            const searchGroup = searchButton?.closest('[class*="searchButtonGroup"], .AppHeader-search, .search-input-container') || searchButton;
+            if (!searchGroup) return;
+            wrapper = document.createElement('div');
+            wrapper.className = 'github-repository-star';
+            wrapper.dataset.repositoryStar = repoKey;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'github-forklist-btn';
+            wrapper.appendChild(button);
+            searchGroup.insertAdjacentElement('beforebegin', wrapper);
+            let state = null;
+            let busy = false;
+            const current = () => wrapper.isConnected && getSubpageRepository() === repoKey;
+            const refresh = async () => {
+                busy = true;
+                button.disabled = true;
+                button.textContent = t.starLoading;
+                try {
+                    const next = await loadRepositoryStar(repoKey);
+                    if (!current()) return;
+                    state = next;
+                    button.textContent = state.loggedIn
+                        ? `${state.starred ? '★ Starred' : '☆ Star'}${Number.isFinite(state.count) ? ` ${state.count.toLocaleString()}` : ''}`
+                        : `☆ ${t.starLogin}`;
+                    if (state.loggedIn) button.setAttribute('aria-pressed', String(state.starred));
+                    button.title = state.loggedIn ? `${state.starred ? 'Unstar' : 'Star'} ${repoKey}` : t.starLogin;
+                } catch (error) {
+                    if (!current()) return;
+                    state = null;
+                    button.removeAttribute('aria-pressed');
+                    button.textContent = t.starRetry;
+                    button.title = t.starError;
+                    console.warn('GitHub Star:', error);
+                } finally {
+                    busy = false;
+                    button.disabled = Boolean(state?.loggedIn && !state.canStar);
+                }
+            };
+            button.addEventListener('click', async () => {
+                if (busy || !current()) return;
+                if (!state) { await refresh(); return; }
+                if (!state.loggedIn) {
+                    location.href = `/login?return_to=${encodeURIComponent(location.pathname + location.search)}`;
+                    return;
+                }
+                busy = true;
+                button.disabled = true;
+                try {
+                    // 每次操作前重新读取状态，兼容在其他标签页修改 Star。
+                    state = await loadRepositoryStar(repoKey);
+                    if (current() && state.loggedIn && state.canStar) await toggleRepositoryStar(repoKey, state);
+                    if (current()) await refresh();
+                } catch (error) {
+                    state = null;
+                    button.removeAttribute('aria-pressed');
+                    button.textContent = t.starRetry;
+                    button.title = t.starError;
+                    console.warn('GitHub Star:', error);
+                } finally {
+                    busy = false;
+                    button.disabled = Boolean(state?.loggedIn && !state.canStar);
+                }
+            });
+            refresh();
+        };
+        update();
+        if (repositoryStarObserver) return;
+        repositoryStarObserver = new MutationObserver(update);
+        repositoryStarObserver.observe(document.body, { childList: true, subtree: true });
+        document.addEventListener('turbo:load', update);
+        document.addEventListener('turbo:render', update);
+        document.addEventListener('pjax:end', update);
+    }
+
     // ==================== 项目信息缓存 ====================
     const projectInfoCache = new Map();
     const CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
@@ -675,6 +899,10 @@
     function init() {
         console.log('🚀 GitHub 通知仓库信息脚本启动');
         setupRepositoryForkButton();
+        setupRepositoryStarButton();
+
+        // 仓库页面没有通知列表，仅在通知页面初始化这些功能。
+        if (!/^\/notifications(?:\/|$)/.test(location.pathname)) return;
 
         // 从 URL 获取仓库信息
         const urlRepo = getRepoFromUrl();
