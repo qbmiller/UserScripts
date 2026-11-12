@@ -4,7 +4,7 @@
 // @description       Display notification repository info and Star controls on repository subpages
 // @description:zh-CN 在通知页面显示仓库信息，在仓库子页面显示 Star 状态并支持直接操作
 // @namespace         https://github.com/ChinaGodMan/UserScripts
-// @version           1.0.6
+// @version           1.0.8
 // @author            人民的勤务员 <china.qinwuyuan@gmail.com>
 // @match             https://github.com/notifications*
 // @match             https://github.com/*/*
@@ -48,6 +48,11 @@
             cancel: 'Cancel',
             loading: 'Loading project information...',
             error: 'Failed to load project information',
+            moreInfo: 'More information',
+            retry: 'Retry',
+            starred: 'Starred',
+            notStarred: 'Not starred',
+            detailsError: 'Additional information unavailable. Try again.',
             starLoading: 'Loading Star…',
             starRetry: 'Retry Star',
             starLogin: 'Sign in to Star',
@@ -76,6 +81,11 @@
             cancel: '取消',
             loading: '加载项目信息中...',
             error: '加载项目信息失败',
+            moreInfo: '更多信息',
+            retry: '重试',
+            starred: '已 Star',
+            notStarred: '未 Star',
+            detailsError: '补充信息暂不可用，请重试。',
             starLoading: '加载 Star…',
             starRetry: '重试加载 Star',
             starLogin: '登录后 Star',
@@ -329,37 +339,71 @@
         }
     `);
 
-    // ==================== 工具函数 ====================
-
-    // 等待元素出现
-    function waitForElement(selector, timeout = 10000) {
-        return new Promise((resolve, reject) => {
-            const element = document.querySelector(selector);
-            if (element) {
-                resolve(element);
-                return;
+    GM_addStyle(`
+        #github-project-info {
+            padding: 20px 24px;
+            margin: 0 0 16px;
+            background: var(--bgColor-muted, #f6f8fa);
+            border-color: var(--borderColor-default, #d1d9e0);
+            color: var(--fgColor-default, #1f2328);
+        }
+        #github-project-info .repo-heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        #github-project-info h3 { margin: 0; font-size: 18px; line-height: 1.5; }
+        #github-project-info .repo-columns {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+            gap: 24px;
+        }
+        #github-project-info .repo-description {
+            margin: 0 0 16px;
+            font-size: 15px;
+            line-height: 1.75;
+            overflow-wrap: anywhere;
+        }
+        #github-project-info .repo-stats {
+            display: grid;
+            gap: 8px;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        #github-project-info .repo-details {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+            padding-left: 24px;
+            border-left: 1px solid var(--borderColor-default, #d1d9e0);
+            font-size: 14px;
+            line-height: 1.7;
+            overflow-wrap: anywhere;
+            min-width: 0;
+        }
+        #github-project-info .repo-status {
+            color: var(--fgColor-muted, #59636e);
+            font-size: 14px;
+        }
+        #github-project-info .loading, #github-project-info .error { padding: 4px; margin: 0; font-size: 15px; }
+        #github-project-info a { color: var(--fgColor-accent, #0969da); }
+        #github-project-info button { cursor: pointer; margin-left: 0; height: 32px; font-size: 14px; }
+        @media (max-width: 768px) {
+            #github-project-info { padding: 16px; }
+            #github-project-info .repo-columns { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+            #github-project-info .repo-details {
+                border-left: 0;
+                border-top: 1px solid var(--borderColor-default, #d1d9e0);
+                padding: 16px 0 0;
             }
+        }
+    `);
 
-            const observer = new MutationObserver(() => {
-                const element = document.querySelector(selector);
-                if (element) {
-                    observer.disconnect();
-                    clearTimeout(timeoutId);
-                    resolve(element);
-                }
-            });
-
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
-
-            const timeoutId = setTimeout(() => {
-                observer.disconnect();
-                reject(new Error(`元素 ${selector} 未找到`));
-            }, timeout);
-        });
-    }
+    // ==================== 工具函数 ====================
 
     // 从 URL 获取仓库信息
     function getRepoFromUrl() {
@@ -686,171 +730,204 @@
         document.addEventListener('pjax:end', update);
     }
 
-    // ==================== 项目信息缓存 ====================
+    // ==================== 通知页仓库信息 ====================
     const projectInfoCache = new Map();
-    const CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
+    const projectInfoRequests = new Map();
+    const CACHE_DURATION = 5 * 60 * 1000;
+    let projectInfoVersion = 0;
+    let selectedProject = null;
+    let notificationListenersReady = false;
 
-    // ==================== UI 更新函数 ====================
+    const isNotificationsPage = () => /^\/notifications(?:\/|$)/.test(location.pathname);
 
-    // 创建信息展示元素
-    function createInfoElement() {
-        const infoDiv = document.createElement('div');
-        infoDiv.id = 'github-project-info';
-        return infoDiv;
+    // 以搜索工具栏定位右侧内容区，空结果页同样存在，不依赖通知列表。
+    function getProjectInfoElement() {
+        const toolbar = document.querySelector('.notifications-query-builder-wrapper')?.parentElement;
+        const list = document.querySelector('.notifications-list');
+        const anchor = toolbar || list;
+        if (!anchor) return null;
+        let element = document.getElementById('github-project-info');
+        if (!element) {
+            element = document.createElement('section');
+            element.id = 'github-project-info';
+            element.setAttribute('aria-live', 'polite');
+        }
+        if (element.parentElement !== anchor.parentElement || element.nextElementSibling !== anchor) {
+            anchor.before(element);
+        }
+        return element;
     }
 
-    // 更新项目信息显示
-    function updateProjectInfo(data) {
-        let infoDiv = document.getElementById('github-project-info');
-
-        if (!infoDiv) {
-            infoDiv = createInfoElement();
-            const notificationsList = document.querySelector('.notifications-list');
-            if (notificationsList) {
-                notificationsList.parentNode.insertBefore(infoDiv, notificationsList);
-            } else {
-                const mainContent = document.querySelector('main') || document.body;
-                mainContent.insertBefore(infoDiv, mainContent.firstChild);
-            }
-        }
-
-        // 加载状态
-        if (!data) {
-            infoDiv.innerHTML = `<p class="loading">⏳ ${t.loading}</p>`;
+    function updateProjectInfo(data, { loading = false, error = '', detailsError = '' } = {}) {
+        if (!isNotificationsPage()) return;
+        const card = getProjectInfoElement();
+        if (!card) return;
+        card.replaceChildren();
+        const appendText = (parent, tag, text, className = '') => {
+            const node = document.createElement(tag);
+            node.className = className;
+            node.textContent = text;
+            parent.append(node);
+            return node;
+        };
+        const appendLink = (parent, text, href) => {
+            try {
+                const url = new URL(href);
+                if (!['http:', 'https:'].includes(url.protocol)) return;
+                const link = appendText(parent, 'a', text);
+                link.href = url.href;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+            } catch { /* 无效的仓库官网不生成链接 */ }
+        };
+        const addButton = (label, details = false, parent = card) => {
+            const button = appendText(parent, 'button', label, 'github-forklist-btn');
+            button.type = 'button';
+            const project = selectedProject;
+            button.addEventListener('click', () => {
+                if (project) fetchProjectInfo(project.owner, project.repo, { details, force: true });
+            });
+            return button;
+        };
+        if (loading) {
+            appendText(card, 'p', `⏳ ${t.loading}`, 'loading');
             return;
         }
-
-        // 错误状态
-        if (data.error) {
-            infoDiv.innerHTML = `<p class="error">⚠️ ${data.message || t.error}</p>`;
+        if (error) {
+            appendText(card, 'p', error, 'error');
+            addButton(t.retry);
             return;
         }
-
-        // 正常显示
-        const content = `
-            <h3>📊 <a href="https://github.com/${data.full_name}" target="_blank">${data.full_name}</a></h3>
-            <div class="info-grid">
-                <div class="info-column">
-                    <p><strong>${t.repoDes}</strong> ${data.description || 'None'}</p>
-                    <p><strong>${t.repoTotal}</strong></p>
-                    <div class="stats">
-                        ⭐ ${t.repoStars} ${data.stargazers_count.toLocaleString()}<br>
-                        🍴 ${t.repoForks} ${data.forks_count.toLocaleString()}<br>
-                        👀 ${t.repoWatcher} ${data.watchers_count.toLocaleString()}
-                    </div>
-                </div>
-                <div class="info-column">
-                    <p><strong>${t.repoLang}</strong> ${data.language || 'None'}</p>
-                    <p><strong>${t.repoUpdated}</strong> ${new Date(data.updated_at).toLocaleString()}</p>
-                    <p><strong>${t.repoLicense}</strong> ${data.license ? data.license.name : 'None'}</p>
-                    ${data.homepage ? `<p><strong>${t.repoPage}</strong> <a href="${data.homepage}" target="_blank">${data.homepage}</a></p>` : ''}
-                </div>
-            </div>
-        `;
-
-        infoDiv.innerHTML = content;
+        const heading = appendText(card, 'div', '', 'repo-heading');
+        appendLink(appendText(heading, 'h3', '📊 '), data.full_name, `https://github.com/${data.full_name}`);
+        if (typeof data.viewerHasStarred === 'boolean') {
+            appendText(heading, 'span', `${data.viewerHasStarred ? '★' : '☆'} ${data.viewerHasStarred ? t.starred : t.notStarred}`, 'repo-status');
+        }
+        const columns = appendText(card, 'div', '', 'repo-columns');
+        const overview = appendText(columns, 'div', '', 'repo-overview');
+        if (data.description) appendText(overview, 'p', data.description, 'repo-description');
+        const stats = appendText(overview, 'div', '', 'repo-stats');
+        for (const [icon, label, value] of [
+            ['⭐', t.repoStars, data.stargazers_count],
+            ['🍴', t.repoForks, data.forks_count],
+            ['👀', t.repoWatcher, data.subscribers_count]
+        ]) {
+            if (Number.isFinite(value)) appendText(stats, 'span', `${icon} ${label}${value.toLocaleString()}`);
+        }
+        const info = appendText(columns, 'div', '', 'repo-details');
+        if (data.license?.name) appendText(info, 'span', `${t.repoLicense}${data.license.name}`);
+        if (data.homepage) appendLink(info, t.repoPage + data.homepage, data.homepage);
+        if (data.language) appendText(info, 'span', `${t.repoLang}${data.language}`);
+        if (data.updated_at && Number.isFinite(Date.parse(data.updated_at))) {
+            appendText(info, 'span', `${t.repoUpdated}${new Date(data.updated_at).toLocaleString()}`);
+        }
+        if (detailsError) appendText(info, 'p', detailsError, 'error');
+        if (!data.detailsLoaded) addButton(detailsError ? t.retry : t.moreInfo, true, info);
     }
 
-    // ==================== API 请求函数 ====================
+    function sharedProjectRequest(key, load) {
+        if (projectInfoRequests.has(key)) return projectInfoRequests.get(key);
+        const promise = Promise.resolve().then(load).finally(() => projectInfoRequests.delete(key));
+        projectInfoRequests.set(key, promise);
+        return promise;
+    }
 
-    // 获取项目信息
-    function fetchProjectInfo(owner, repo) {
-        const cacheKey = `${owner}/${repo}`;
+    // REST 只用于按需补充语言、更新时间，或同源内部接口不可用时回退。
+    function requestRestProject(repoKey) {
+        return sharedProjectRequest(`rest:${repoKey}`, () => new Promise((resolve, reject) => {
+            const headers = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+            if (PAT_GITHUB_TOKEN) headers.Authorization = `Bearer ${PAT_GITHUB_TOKEN}`;
+            GM_xmlhttpRequest({
+                method: 'GET', url: `https://api.github.com/repos/${repoKey}`, headers,
+                timeout: 10000,
+                onload(response) {
+                    if (response.status !== 200) { reject(new Error(`${t.error} (${response.status})`)); return; }
+                    try { resolve({ ...JSON.parse(response.responseText), detailsLoaded: true }); }
+                    catch { reject(new Error(t.error)); }
+                },
+                onerror: () => reject(new Error(t.networkError)),
+                ontimeout: () => reject(new Error(t.networkError)),
+                onabort: () => reject(new Error(t.networkError))
+            });
+        }));
+    }
 
-        // 检查缓存
-        const cached = projectInfoCache.get(cacheKey);
-        if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-            console.log('📦 使用缓存数据:', cacheKey);
-            updateProjectInfo(cached.data);
-            return;
-        }
-
-        // 显示加载状态
-        updateProjectInfo(null);
-
-        GM_xmlhttpRequest({
-            method: 'GET',
-            url: `https://api.github.com/repos/${owner}/${repo}`,
-            headers: {
-                'Authorization': PAT_GITHUB_TOKEN ? `token ${PAT_GITHUB_TOKEN}` : '',
-                'Accept': 'application/vnd.github.v3+json'
-            },
-            onload: function(response) {
-                try {
-                    if (response.status === 200) {
-                        const data = JSON.parse(response.responseText);
-
-                        // 缓存数据
-                        projectInfoCache.set(cacheKey, {
-                            data: data,
-                            timestamp: Date.now()
-                        });
-
-                        updateProjectInfo(data);
-                        console.log('✅ 项目信息获取成功:', cacheKey);
-                    } else {
-                        console.error('❌ API 返回错误:', response.status);
-                        updateProjectInfo({
-                            error: true,
-                            message: `${t.error} (${response.status})`
-                        });
-                    }
-                } catch (e) {
-                    console.error('❌ 解析失败:', e);
-                    updateProjectInfo({
-                        error: true,
-                        message: t.error
-                    });
-                }
-            },
-            onerror: function() {
-                console.error('❌ 网络请求失败');
-                updateProjectInfo({
-                    error: true,
-                    message: t.networkError
+    function requestProject(repoKey) {
+        const cached = projectInfoCache.get(repoKey);
+        if (cached && Date.now() - cached.timestamp < CACHE_DURATION) return Promise.resolve(cached.data);
+        return sharedProjectRequest(`about:${repoKey}`, async () => {
+            let data;
+            try {
+                const response = await fetch(`/${repoKey}/_sidebar/about`, {
+                    credentials: 'same-origin', cache: 'no-store',
+                    headers: { Accept: 'application/json', 'GitHub-Verified-Fetch': 'true' },
+                    signal: AbortSignal.timeout(10000)
                 });
-            },
-            timeout: 10000
+                if (!response.ok) throw new Error(`Sidebar ${response.status}`);
+                const about = await response.json();
+                if (!Number.isFinite(about.stargazerCount)) throw new Error('Invalid sidebar response');
+                data = {
+                    full_name: repoKey, description: about.description, homepage: about.website,
+                    stargazers_count: about.stargazerCount, forks_count: about.forksCount,
+                    subscribers_count: about.watcherCount, license: about.repo?.license,
+                    viewerHasStarred: about.viewer?.isLoggedIn ? about.star?.viewerHasStarred : undefined
+                };
+            } catch {
+                data = await requestRestProject(repoKey);
+            }
+            projectInfoCache.set(repoKey, { data, timestamp: Date.now() });
+            return data;
         });
     }
 
-    // ==================== 通知页面监听 ====================
-
-    // 设置悬停监听
-    function setupNotificationHoverListener() {
-        const notificationsList = document.querySelector('.notifications-list');
-        if (!notificationsList || notificationsList.hasAttribute('data-hover-listener')) {
-            return;
+    async function fetchProjectInfo(owner, repo, { details = false, force = false } = {}) {
+        const repoKey = `${owner}/${repo}`;
+        const route = location.href;
+        if (!isNotificationsPage()) return;
+        if (!force && selectedProject?.key === repoKey && selectedProject.route === route &&
+            document.getElementById('github-project-info')) return;
+        selectedProject = { owner, repo, key: repoKey, route };
+        const version = ++projectInfoVersion;
+        const current = () => version === projectInfoVersion && location.href === route && isNotificationsPage();
+        if (force && !details) projectInfoCache.delete(repoKey);
+        if (!details) updateProjectInfo(null, { loading: true });
+        let data;
+        try {
+            data = await requestProject(repoKey);
+            if (!current()) return;
+            updateProjectInfo(data);
+            if (details && !data.detailsLoaded) {
+                const button = document.querySelector('#github-project-info button');
+                if (button) { button.disabled = true; button.textContent = t.loading; }
+                const extra = await requestRestProject(repoKey);
+                // 主接口中的统计和当前用户状态优先，REST 只补充缺失字段。
+                data = { ...extra, ...data, language: extra.language, updated_at: extra.updated_at, detailsLoaded: true };
+                projectInfoCache.set(repoKey, { data, timestamp: Date.now() });
+                if (current()) updateProjectInfo(data);
+            }
+        } catch (error) {
+            if (!current()) return;
+            if (data) updateProjectInfo(data, { detailsError: t.detailsError });
+            else updateProjectInfo(null, { error: error.message || t.error });
         }
+    }
 
-        let lastRepoKey = null;
-        let debounceTimer = null;
-
-        notificationsList.addEventListener('mouseover', (event) => {
+    // 委托给 document：列表被 Turbo 替换后依然有效，空结果页无需等待列表。
+    function setupNotificationHoverListener() {
+        if (notificationListenersReady) return;
+        notificationListenersReady = true;
+        let debounceTimer;
+        const handle = event => {
+            const item = event.target.closest?.('li.notifications-list-item');
+            if (event.type === 'mouseover' && item && event.relatedTarget instanceof Node && item.contains(event.relatedTarget)) return;
             clearTimeout(debounceTimer);
-
-            debounceTimer = setTimeout(() => {
-                const li = event.target.closest('li.notifications-list-item');
-                if (!li) return;
-
-                const link = li.querySelector('.js-navigation-open');
-                if (!link) return;
-
-                const result = extractRepoInfo(link.href);
-                if (!result) return;
-
-                const repoKey = `${result.owner}/${result.name}`;
-
-                if (repoKey !== lastRepoKey) {
-                    console.log('🔍 鼠标悬停获取:', result);
-                    lastRepoKey = repoKey;
-                    fetchProjectInfo(result.owner, result.name);
-                }
-            }, 200);
-        });
-
-        notificationsList.setAttribute('data-hover-listener', 'true');
-        console.log('✅ 通知列表悬停监听已设置');
+            if (!isNotificationsPage() || !item) return;
+            const link = item.querySelector('.js-navigation-open');
+            const result = link && extractRepoInfo(link.href);
+            if (result) debounceTimer = setTimeout(() => fetchProjectInfo(result.owner, result.name), 200);
+        };
+        document.addEventListener('mouseover', handle);
+        document.addEventListener('focusin', handle);
     }
 
     // ==================== Token 设置 ====================
@@ -901,24 +978,20 @@
         setupRepositoryForkButton();
         setupRepositoryStarButton();
 
-        // 仓库页面没有通知列表，仅在通知页面初始化这些功能。
-        if (!/^\/notifications(?:\/|$)/.test(location.pathname)) return;
-
-        // 从 URL 获取仓库信息
-        const urlRepo = getRepoFromUrl();
-        if (urlRepo) {
-            console.log('📌 从 URL 获取仓库信息:', urlRepo);
-            fetchProjectInfo(urlRepo.owner, urlRepo.repo);
+        if (!isNotificationsPage()) {
+            ++projectInfoVersion;
+            selectedProject = null;
+            document.getElementById('github-project-info')?.remove();
+            return;
         }
-
-        // 等待通知列表加载后设置悬停监听
-        waitForElement('.notifications-list')
-            .then(() => {
-                setupNotificationHoverListener();
-            })
-            .catch(err => {
-                console.warn('⚠️ 未找到通知列表:', err.message);
-            });
+        setupNotificationHoverListener();
+        const urlRepo = getRepoFromUrl();
+        if (urlRepo) fetchProjectInfo(urlRepo.owner, urlRepo.repo);
+        else if (selectedProject?.route !== location.href) {
+            ++projectInfoVersion;
+            selectedProject = null;
+            document.getElementById('github-project-info')?.remove();
+        }
     }
 
     // 监听 URL 变化
@@ -930,6 +1003,10 @@
             setTimeout(init, 100);
         }
     }).observe(document, { subtree: true, childList: true });
+
+    document.addEventListener('turbo:load', init);
+    document.addEventListener('turbo:render', init);
+    document.addEventListener('pjax:end', init);
 
     // 注册菜单命令
     GM_registerMenuCommand(t.setToken, createTokenModal);
