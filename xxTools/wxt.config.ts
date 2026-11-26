@@ -15,7 +15,11 @@ export default defineConfig({
       "bookmarks",
       "alarms",
     ],
-    host_permissions: ["https://api.github.com/*", "https://httpbin.org/*"],
+    host_permissions: [
+      "https://api.github.com/*",
+      "https://httpbin.org/*",
+      "https://cloudflare-dns.com/*",
+    ],
     icons: {
       16: "icon/16.png",
       32: "icon/32.png",

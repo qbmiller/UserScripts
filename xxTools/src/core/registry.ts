@@ -13,6 +13,16 @@ export interface ToolDefinition {
 }
 export const tools: ToolDefinition[] = [
   {
+    id: "dns",
+    title: "DNS 查询",
+    description: "A / AAAA / CNAME / MX / TXT",
+    category: "网络",
+    icon: "🌍",
+    keywords: ["dns", "域名", "解析", "cloudflare", "doh", "ipv6"],
+    processing: "network",
+    load: () => import("../tools/dns/ToolView.vue"),
+  },
+  {
     id: "request-headers",
     title: "请求头查看",
     description: "查看你的请求头",
@@ -115,7 +125,6 @@ const plannedTools = [
   ["json-yaml", "JSON 转 YAML", "结构化互转", "开发", "🔄"],
   ["base64", "Base64 编解码", "编码 / 解码", "开发", "🔐"],
   ["jwt", "JWT 解析", "查看 Payload 与过期时间", "开发", "🪪"],
-  ["dns", "DNS 查询", "A / AAAA / CNAME / MX", "网络", "🌍"],
   ["unit-convert", "单位换算", "长度 / 重量 / 温度 / 数据", "其他", "📊"],
   ["password-generator", "密码生成", "强随机密码", "其他", "🔑"],
 ] as const;
