@@ -28,7 +28,7 @@ async function copy(value: string) {
       :value="value"
       readonly
       spellcheck="false"
-      aria-label="处理结果"
+      :aria-label="label || '处理结果'"
       placeholder="结果会显示在这里…"
     />
     <p v-if="copyError" role="alert" class="error-message">{{ copyError }}</p>

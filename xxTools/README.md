@@ -4,6 +4,10 @@ WXT + Vue 3 + TypeScript 开发的 Chrome MV3 侧栏扩展，当前版本 2.3.0�
 
 ## 已有功能
 
+- 配置互转：JSON、YAML / YML、Java Properties 任意互转。Properties 使用宽松模式，支持 Java 转义与续行，按点号和数组索引尽量展开/还原路径；空数组、空对象、null 输出为 []、{}、null 文本，特殊键名直接保留，重复键及路径冲突以后面的值为准，缺失数组项补 null。顶层数组使用 items 前缀，顶层单值使用 value 键。Properties 转回时值默认为字符串，不保证严格往返一致；转换移除注释和原始排版。
+- Base64 编解码：本地 UTF-8 文本编码、解码，支持中文、表情和 Base64URL，检查非法编码和非 UTF-8 内容。
+- JWT 解析：本地展示 Header、Payload、iat / nbf / exp 与实时有效期状态，支持 Bearer 前缀；仅解析，不验证签名。
+
 - DNS 查询：通过 Cloudflare DNS-over-HTTPS 查询 A / AAAA / CNAME / MX / TXT，支持中文域名、无记录提示、部分失败展示与 15 秒超时。点击查询后向 cloudflare-dns.com 发送域名，不使用系统或内网 DNS。
 
 - 知乎文章目录：自动提取专栏正文 h1–h4 标题，左侧显示目录，支持点击跳转、滚动高亮及窄屏折叠。

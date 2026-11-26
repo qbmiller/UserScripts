@@ -2,6 +2,7 @@
 import { ref } from "vue";
 import ResultPanel from "../../components/ResultPanel.vue";
 import { formatJson } from "../../core/transforms.mjs";
+defineProps<{ compact?: boolean }>();
 const input = ref("");
 const result = ref("");
 const error = ref("");
@@ -40,8 +41,12 @@ function run(compact: boolean) {
     placeholder='粘贴 JSON，例如 {"hello": "world"}'
   />
   <div class="actions">
-    <button class="primary-button" @click="run(false)">格式化</button
-    ><button class="secondary-button" @click="run(true)">压缩</button
+    <button class="primary-button" @click="run(!!compact)">
+      {{ compact ? "压缩" : "格式化" }}</button><button
+      class="secondary-button"
+      @click="run(!compact)"
+    >
+      {{ compact ? "格式化" : "压缩" }}</button
     ><button
       class="text-button"
       @click="

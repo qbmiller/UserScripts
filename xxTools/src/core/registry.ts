@@ -13,6 +13,36 @@ export interface ToolDefinition {
 }
 export const tools: ToolDefinition[] = [
   {
+    id: "json-yaml",
+    title: "JSON / YAML / Properties 互转",
+    description: "三种配置格式任意互转",
+    category: "开发",
+    icon: "🔄",
+    keywords: ["json", "yaml", "yml", "properties", "property", "配置", "互转"],
+    processing: "local",
+    load: () => import("../tools/config-convert/ToolView.vue"),
+  },
+  {
+    id: "base64",
+    title: "Base64 编解码",
+    description: "UTF-8 文本 / Base64 / Base64URL",
+    category: "开发",
+    icon: "🔐",
+    keywords: ["base64", "base64url", "编码", "解码"],
+    processing: "local",
+    load: () => import("../tools/base64/ToolView.vue"),
+  },
+  {
+    id: "jwt",
+    title: "JWT 解析",
+    description: "查看 Header、Payload 与过期时间",
+    category: "开发",
+    icon: "🪪",
+    keywords: ["jwt", "token", "bearer", "令牌", "解析", "过期"],
+    processing: "local",
+    load: () => import("../tools/jwt/ToolView.vue"),
+  },
+  {
     id: "dns",
     title: "DNS 查询",
     description: "A / AAAA / CNAME / MX / TXT",
@@ -122,9 +152,6 @@ const plannedTools = [
   ["color-picker", "取色器", "屏幕取色 / 格式转换", "设计", "🎨"],
   ["qr-code", "QR Code", "生成二维码", "设计", "▦"],
   ["screen-capture", "网页截图/录屏", "整页 / 区域截图与录屏", "设计", "📸"],
-  ["json-yaml", "JSON 转 YAML", "结构化互转", "开发", "🔄"],
-  ["base64", "Base64 编解码", "编码 / 解码", "开发", "🔐"],
-  ["jwt", "JWT 解析", "查看 Payload 与过期时间", "开发", "🪪"],
   ["unit-convert", "单位换算", "长度 / 重量 / 温度 / 数据", "其他", "📊"],
   ["password-generator", "密码生成", "强随机密码", "其他", "🔑"],
 ] as const;
@@ -149,7 +176,7 @@ tools.push({
   icon: "{}",
   keywords: ["json", "压缩", "minify"],
   processing: "local",
-  load: () => import("../tools/json/ToolView.vue"),
+  load: () => import("../tools/json/CompactView.vue"),
 });
 export function searchTools(query: string, category = "全部") {
   const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
