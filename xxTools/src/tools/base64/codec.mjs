@@ -24,7 +24,7 @@ export function decodeBase64(text) {
   if (btoa(binary).replace(/=+$/, "") !== unpadded)
     throw new Error("Base64 格式不正确：存在无效的末尾编码位。");
   try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
       Uint8Array.from(binary, (char) => char.charCodeAt(0)),
     );
   } catch {

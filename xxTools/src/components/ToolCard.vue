@@ -5,7 +5,11 @@ defineEmits<{ open: [id: string]; favorite: [id: string] }>();
 </script>
 <template>
   <article class="tool-card">
-    <button class="tool-open" @click="$emit('open', tool.id)">
+    <button
+      class="tool-open"
+      :title="`${tool.title}${tool.comingSoon ? '（开发中）' : ''} · ${tool.description}`"
+      @click="$emit('open', tool.id)"
+    >
       <span class="tool-icon" :class="tool.id">{{ tool.icon }}</span><span
         class="tool-copy"
         ><strong

@@ -1,7 +1,12 @@
 export const PREFERENCES_KEY = "toolbox.preferences";
-const strings = (value) =>
+const currentToolId = (id) => (id === "url-codec" ? "base64" : id);
+const toolIds = (value) =>
   Array.isArray(value)
-    ? [...new Set(value.filter((item) => typeof item === "string"))]
+    ? [
+        ...new Set(
+          value.filter((item) => typeof item === "string").map(currentToolId),
+        ),
+      ]
     : [];
 export function normalizePreferences(value) {
   const data = value && typeof value === "object" ? value : {};
@@ -10,8 +15,8 @@ export function normalizePreferences(value) {
     autoRestore:
       typeof data.autoRestore === "boolean" ? data.autoRestore : true,
     skipBookmarkDeleteConfirm: data.skipBookmarkDeleteConfirm === true,
-    favorites: strings(data.favorites),
-    recent: strings(data.recent).slice(0, 6),
+    favorites: toolIds(data.favorites),
+    recent: toolIds(data.recent).slice(0, 6),
   };
 }
 export function updateRecent(recent, id) {
@@ -34,12 +39,14 @@ export function applyPreferenceChange(value, change) {
   if (change.type === "autoRestore") next.autoRestore = change.value;
   if (change.type === "skipBookmarkDeleteConfirm")
     next.skipBookmarkDeleteConfirm = change.value;
-  if (change.type === "favorite")
-    next.favorites = next.favorites.includes(change.id)
-      ? next.favorites.filter((id) => id !== change.id)
-      : [...next.favorites, change.id];
+  if (change.type === "favorite") {
+    const id = currentToolId(change.id);
+    next.favorites = next.favorites.includes(id)
+      ? next.favorites.filter((item) => item !== id)
+      : [...next.favorites, id];
+  }
   if (change.type === "recent")
-    next.recent = updateRecent(next.recent, change.id);
+    next.recent = updateRecent(next.recent, currentToolId(change.id));
   if (change.type === "clearRecent") next.recent = [];
   return next;
 }

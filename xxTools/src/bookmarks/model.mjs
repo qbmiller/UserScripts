@@ -1,3 +1,5 @@
+import { getOriginalUrl } from "../core/transforms.mjs";
+
 export function flattenBookmarks(nodes, folders = []) {
   const result = [];
   for (const node of nodes) {
@@ -20,7 +22,7 @@ export function flattenBookmarks(nodes, folders = []) {
 }
 export function websiteOf(value) {
   try {
-    const url = new URL(value);
+    const url = new URL(getOriginalUrl(value) ?? value);
     return ["https:", "http:"].includes(url.protocol)
       ? url.hostname.toLowerCase().replace(/^www\./, "")
       : "其他地址";
@@ -55,6 +57,7 @@ export function searchBookmarks(bookmarks, query) {
 export function bookmarkTarget(value) {
   try {
     const url = new URL(value);
+    if (url.protocol === "chrome-extension:") return getOriginalUrl(value);
     return ["https:", "http:", "ftp:", "file:", "chrome:", "edge:"].includes(
       url.protocol,
     )

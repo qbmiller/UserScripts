@@ -76,3 +76,26 @@ test("损坏存储被规范化，最近使用去重并限制数量", () => {
     6,
   );
 });
+test("旧 URL 工具的收藏和最近使用合并到加解码", () => {
+  const preferences = normalizePreferences({
+    favorites: ["url-codec", "json", "base64"],
+    recent: [
+      "json",
+      "url-codec",
+      "base64",
+      "jwt",
+      "dns",
+      "word-count",
+      "json-compress",
+    ],
+  });
+  assert.deepEqual(preferences.favorites, ["base64", "json"]);
+  assert.deepEqual(preferences.recent, [
+    "json",
+    "base64",
+    "jwt",
+    "dns",
+    "word-count",
+    "json-compress",
+  ]);
+});

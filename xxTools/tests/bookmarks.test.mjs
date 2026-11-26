@@ -5,6 +5,7 @@ import {
   groupByWebsite,
   searchBookmarks,
   bookmarkTarget,
+  websiteOf,
 } from "../src/bookmarks/model.mjs";
 const tree = [
   {
@@ -42,6 +43,27 @@ test("展开书签保留来源路径、顺序和重复网址，不修改原始�
   assert.deepEqual(files[0].folders, ["书签栏", "开发"]);
   assert.equal(JSON.stringify(tree), before);
   assert.equal(flattenBookmarks([]).length, 0);
+});
+
+test("挂起书签可在新标签打开原址并按原站点归组", () => {
+  const prefix =
+    "chrome-extension://klbibkeccnjlkjkiokjodocebajanakg/suspended.html#ttl=DesignEvo&uri=";
+  const escaped =
+    prefix + String.raw`https\://www\.designevo.com/cn/apps/logo/`;
+  const target = "https://www.designevo.com/cn/apps/logo/";
+  assert.equal(bookmarkTarget(escaped), target);
+  assert.equal(websiteOf(escaped), "designevo.com");
+  const withQuery = `${target}?q=a+b&next=%2F#logo`;
+  assert.equal(bookmarkTarget(prefix + withQuery), withQuery);
+  assert.equal(
+    bookmarkTarget(prefix + encodeURIComponent(withQuery)),
+    withQuery,
+  );
+  assert.equal(bookmarkTarget(prefix + "javascript:alert(1)"), null);
+  assert.equal(
+    bookmarkTarget(prefix.replace("suspended.html", "options.html") + target),
+    null,
+  );
 });
 test("网站分组规范化 www 和大小写，保留不同子域并处理特殊地址", () => {
   const files = flattenBookmarks(tree);

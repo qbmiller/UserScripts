@@ -8,25 +8,30 @@ export default defineContentScript({
     let stopped = false;
     let state = "loading";
     let error = "";
-    let dispose = () => {};
+    let selection: ReturnType<typeof installGitHubSelection> | undefined;
     ctx.onInvalidated(() => {
       stopped = true;
-      dispose();
+      selection?.dispose();
     });
     const update = (settings: object) => {
-      dispose();
-      if (!stopped) {
-        dispose = normalizeGitHubSelectionSettings(settings).enabled
-          ? installGitHubSelection({
-              sendMessage: (message: object) =>
-                chrome.runtime.sendMessage(message),
-            })
-          : () => {};
-        state = normalizeGitHubSelectionSettings(settings).enabled
-          ? "ready"
-          : "disabled";
-        error = "";
+      if (stopped) return;
+      const { enabled, onlyWhenSelected } =
+        normalizeGitHubSelectionSettings(settings);
+      if (enabled) {
+        selection ??= installGitHubSelection(
+          {
+            sendMessage: (message: object) =>
+              chrome.runtime.sendMessage(message),
+          },
+          onlyWhenSelected,
+        );
+        selection.setOnlyWhenSelected(onlyWhenSelected);
+      } else {
+        selection?.dispose();
+        selection = undefined;
       }
+      state = enabled ? "ready" : "disabled";
+      error = "";
     };
     const listener = (message: { type?: string; settings?: object }) => {
       if (

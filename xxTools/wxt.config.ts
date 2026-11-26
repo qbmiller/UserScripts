@@ -5,7 +5,7 @@ export default defineConfig({
   manifest: {
     name: "xxTools",
     description:
-      "侧边栏工具箱：知乎文章目录、公众号阅读增强、GitHub 勾选下载、挂起标签恢复、JSON 格式化、URL 编解码。",
+      "侧边栏工具箱：知乎文章目录、公众号阅读增强、GitHub 勾选下载、挂起标签恢复、JSON 格式化、加解码。",
     minimum_chrome_version: "116",
     permissions: [
       "tabs",
@@ -19,6 +19,7 @@ export default defineConfig({
       "https://api.github.com/*",
       "https://httpbin.org/*",
       "https://cloudflare-dns.com/*",
+      "https://cf.xiaomi318.com/*",
     ],
     icons: {
       16: "icon/16.png",

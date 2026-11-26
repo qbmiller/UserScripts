@@ -22,7 +22,7 @@ async function openGitHub() {
   </div>
   <ol class="github-instructions">
     <li>打开或刷新一个 GitHub 仓库文件列表。</li>
-    <li>勾选文件名旁的复选框，可多选，也可全选当前页。</li>
+    <li>勾选文件或文件夹图标左侧的复选框，可多选，也可全选当前页。</li>
     <li>点击左下方的「下载 ZIP」，在下载任务页查看进度。</li>
   </ol>
   <p class="tool-intro">

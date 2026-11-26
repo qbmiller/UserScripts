@@ -75,6 +75,9 @@ main {
   padding: 26px 22px 40px;
   flex: 1;
 }
+.toolbox-main {
+  padding-top: 10px;
+}
 h1 {
   font-size: 25px;
   line-height: 1.4;
@@ -93,15 +96,17 @@ h2 {
 }
 .app-header {
   display: flex;
+  gap: 12px;
   align-items: center;
   justify-content: space-between;
-  height: 86px;
+  height: 52px;
   padding: 0 22px;
   background: #fff;
   border-bottom: 1px solid #e8ebe5;
 }
 .brand {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 11px;
   padding: 0;
@@ -112,24 +117,17 @@ h2 {
 .brand-mark {
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #285b45;
   color: #fff;
-  width: 40px;
-  height: 40px;
-  font-size: 22px;
+  width: 30px;
+  height: 30px;
+  font-size: 17px;
   font-weight: 600;
   box-shadow: 0 3px 6px #244f3d13;
 }
-.brand small {
-  display: block;
-  color: #8a928b;
-  font-size: 10px;
-  letter-spacing: 1px;
-  font-weight: 400;
-  margin-top: 2px;
-}
 .icon-button {
+  flex-shrink: 0;
   width: 34px;
   height: 34px;
   border: 1px solid #e5e9e2;
@@ -148,11 +146,6 @@ h2 {
   display: block;
   margin-bottom: 10px;
 }
-.page-heading > p {
-  color: #8a9189;
-  font-size: 12px;
-  margin-top: 8px;
-}
 .search-box {
   display: flex;
   align-items: center;
@@ -160,9 +153,20 @@ h2 {
   background: #fff;
   border: 1px solid #e0e5dc;
   border-radius: 12px;
-  padding: 12px 13px;
-  margin: 24px 0 26px;
+  padding: 7px 11px;
+  margin: 0 0 10px;
   box-shadow: 0 2px 3px #223f2b03;
+}
+.lockjob-message {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: #687963;
+  font-size: clamp(9px, 2.5vw, 11px);
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .search-box > span {
   font-size: 24px;
@@ -229,6 +233,11 @@ kbd {
   background: #edf2e9;
   border-color: #c6d4c2;
 }
+.recent-card > span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .mini-icon {
   font-size: 17px;
   color: #477758;
@@ -277,13 +286,57 @@ kbd {
   margin-bottom: 18px;
 }
 .tool-group {
-  margin-bottom: 21px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 8px;
+  margin-bottom: 14px;
 }
 .tool-group > h2 {
+  grid-column: 1 / -1;
   color: #7a8874;
   font-size: 10px;
   letter-spacing: 1px;
-  margin: 0 0 10px 2px;
+  margin: 0 0 2px 2px;
+}
+.tool-group .tool-card {
+  min-width: 0;
+  margin-bottom: 0;
+}
+.tool-group .tool-open {
+  align-self: stretch;
+  gap: 6px;
+  padding: 5px 0 5px 7px;
+}
+.tool-group .tool-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  font-size: 15px;
+}
+.tool-group .tool-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.tool-group .tool-copy strong {
+  flex-shrink: 0;
+  max-width: 100%;
+  font-size: 12px;
+}
+.tool-group .tool-copy :is(strong, small) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-group .tool-copy small {
+  margin-top: 0;
+}
+.tool-group .favorite-button {
+  width: 26px;
+  height: 30px;
+  margin: 0 2px 0 0;
+  padding: 0;
+  font-size: 16px;
 }
 .tool-card {
   display: flex;
@@ -326,10 +379,6 @@ kbd {
   background: #eaf2ed;
   color: #3c775a;
   font-size: 25px;
-}
-.tool-icon.url-codec {
-  background: #f6efe1;
-  color: #a88745;
 }
 .tool-copy {
   min-width: 0;

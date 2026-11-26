@@ -46,6 +46,13 @@ async function remove() {
       Token，登录网页本身不代表 API 已获授权。
     </p>
     <p>Token 只保存在扩展本地，不进入同步存储，不传给网页或第三方。</p>
+    <a
+      class="secondary-button github-token-link"
+      href="https://github.com/settings/personal-access-tokens/new"
+      target="_blank"
+      rel="noopener noreferrer"
+      >创建 GitHub Token ↗</a
+    >
     <label for="github-token">Personal access token</label
     ><input
       id="github-token"
@@ -95,5 +102,9 @@ async function remove() {
 }
 .actions {
   margin-bottom: 0;
+}
+.github-token-link {
+  display: inline-block;
+  text-decoration: none;
 }
 </style>

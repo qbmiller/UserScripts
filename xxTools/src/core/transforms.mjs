@@ -20,6 +20,11 @@ export function getOriginalUrl(value) {
       target = decodeURIComponent(target);
     }
     target = target.replace(/^(https?)\\:/i, "$1:");
+    // 旧挂起链接有时会转义域名中的点。只修复网址开头的主机部分。
+    target = target.replace(
+      /^(https?:\/\/)([^/?#]*)/i,
+      (_, scheme, authority) => scheme + authority.replace(/\\\./g, "."),
+    );
     const original = new URL(target);
     return ["https:", "http:"].includes(original.protocol)
       ? original.href

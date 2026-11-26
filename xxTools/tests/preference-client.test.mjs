@@ -32,7 +32,7 @@ test("早期写回不会覆盖新收藏或重启刚关闭的自动恢复", async
   await turn();
   commits.shift()();
   await turn();
-  assert.deepEqual(state.favorites, ["json", "url-codec"]);
+  assert.deepEqual(state.favorites, ["json", "base64"]);
   assert.equal(state.autoRestore, false);
   const d = client.change({ type: "recent", id: "json" });
   for (let i = 0; i < 3; i++) {
@@ -40,7 +40,7 @@ test("早期写回不会覆盖新收藏或重启刚关闭的自动恢复", async
     await turn();
   }
   await Promise.all([a, b, c, d]);
-  assert.deepEqual(stored.favorites, ["json", "url-codec"]);
+  assert.deepEqual(stored.favorites, ["json", "base64"]);
   assert.equal(stored.autoRestore, false);
   assert.deepEqual(state, stored);
 });

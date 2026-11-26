@@ -6,16 +6,30 @@ import { registerZhihuReader } from "../src/features/zhihu-reader.mjs";
 import { registerGitHubSelectionSettings } from "../src/features/github-selection.mjs";
 
 test("网页增强默认开启，明确关闭可保留，忽略非布尔值和其他数据", () => {
-  for (const normalize of [
-    normalizeZhihuSettings,
-    normalizeGitHubSelectionSettings,
-  ]) {
-    for (const input of [null, {}, { enabled: "false" }])
-      assert.deepEqual(normalize(input), { enabled: true });
-    assert.deepEqual(normalize({ enabled: false, token: "secret" }), {
-      enabled: false,
+  for (const input of [null, {}, { enabled: "false" }]) {
+    assert.deepEqual(normalizeZhihuSettings(input), { enabled: true });
+    assert.deepEqual(normalizeGitHubSelectionSettings(input), {
+      enabled: true,
+      onlyWhenSelected: true,
     });
   }
+  assert.deepEqual(
+    normalizeZhihuSettings({ enabled: false, token: "secret" }),
+    {
+      enabled: false,
+    },
+  );
+  assert.deepEqual(
+    normalizeGitHubSelectionSettings({
+      enabled: false,
+      onlyWhenSelected: false,
+      token: "secret",
+    }),
+    {
+      enabled: false,
+      onlyWhenSelected: false,
+    },
+  );
 });
 
 for (const [register, type, origin, key] of [
@@ -73,7 +87,10 @@ for (const [register, type, origin, key] of [
       });
     assert.deepEqual(await request(), {
       ok: true,
-      settings: { enabled: false },
+      settings:
+        type === "github-selection"
+          ? { enabled: false, onlyWhenSelected: true }
+          : { enabled: false },
     });
     fail = true;
     assert.deepEqual(await request(), { ok: false });

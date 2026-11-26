@@ -46,7 +46,7 @@ test("不同侧栏并发更新按操作合并，其他字段保持不变", async
     request({ type: "recent", id: "json" }),
   ]);
   assert.ok(results.every((result) => result.ok));
-  assert.deepEqual(stored.favorites, ["json", "url-codec"]);
+  assert.deepEqual(stored.favorites, ["json", "base64"]);
   assert.deepEqual(stored.recent, ["json"]);
   assert.equal(stored.autoRestore, false);
   assert.equal(

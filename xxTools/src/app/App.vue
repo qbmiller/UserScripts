@@ -4,6 +4,7 @@ import ToolCard from "../components/ToolCard.vue";
 import ToolHost from "../components/ToolHost.vue";
 import BookmarkView from "../bookmarks/BookmarkView.vue";
 import { tools, searchTools } from "../core/registry";
+import { loadLockjobMessage } from "../core/lockjob";
 import {
   preferences,
   storageStatus,
@@ -22,6 +23,7 @@ const toolNotice = ref("");
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 const visited = ref<string[]>([]);
 const searchInput = ref<HTMLInputElement | null>(null);
+const lockjobMessage = ref("");
 const activeTool = computed(() =>
   tools.find((tool) => tool.id === activeId.value),
 );
@@ -79,6 +81,9 @@ function changeAutoRestore(event: Event) {
 }
 onMounted(() => {
   void loadPreferences();
+  void loadLockjobMessage((message) => {
+    lockjobMessage.value = message;
+  });
   window.addEventListener("keydown", keyboard);
 });
 onUnmounted(() => {
@@ -93,9 +98,12 @@ onUnmounted(() => {
     </div>
     <header class="app-header">
       <button class="brand" @click="navigate('工具箱')">
-        <span class="brand-mark">xx</span
-        ><span>xxTools<small>让小事，顺手一点。</small></span></button
-      ><button
+        <span class="brand-mark">xx</span><span>xxTools</span>
+      </button>
+      <p v-if="lockjobMessage" class="lockjob-message" :title="lockjobMessage">
+        {{ lockjobMessage }}
+      </p>
+      <button
         class="icon-button"
         aria-label="打开设置"
         @click="navigate('设置')"
@@ -103,30 +111,17 @@ onUnmounted(() => {
         ⚙
       </button>
     </header>
-    <main>
+    <main
+      :class="{
+        'toolbox-main': !activeId && ['工具箱', '我的工具'].includes(section),
+      }"
+    >
       <p v-if="storageStatus.error" role="alert" class="error-message">
         {{ storageStatus.error }}
       </p>
       <div v-if="!storageStatus.ready" class="empty-state">正在准备工具…</div>
       <template v-else>
         <section v-show="!activeId && ['工具箱', '我的工具'].includes(section)">
-          <div class="page-heading">
-            <span class="eyebrow">日常工具 · 就在手边</span>
-            <h1>
-              {{
-                section === "我的工具"
-                  ? "常用的，都在这里。"
-                  : "今天，想做点什么？"
-              }}
-            </h1>
-            <p>
-              {{
-                section === "我的工具"
-                  ? "收藏顺手的工具，下次更快找到。"
-                  : "不用来回找，日常小工具触手可及。"
-              }}
-            </p>
-          </div>
           <div class="search-box">
             <span aria-hidden="true">⌕</span
             ><input
