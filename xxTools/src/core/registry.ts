@@ -8,6 +8,7 @@ export interface ToolDefinition {
   icon: string;
   keywords: string[];
   processing: "local";
+  comingSoon?: boolean;
   load: () => Promise<{ default: Component }>;
 }
 export const tools: ToolDefinition[] = [
@@ -72,6 +73,57 @@ export const tools: ToolDefinition[] = [
     load: () => import("../tools/url-codec/ToolView.vue"),
   },
 ];
+// 只登记入口，不加载尚未实现的引擎，也不申请额外权限。
+const plannedTools = [
+  ["image-compress", "图片压缩", "JPG / PNG / WebP", "图片", "🖼️"],
+  ["ocr", "OCR", "图片文字识别", "图片", "🔍"],
+  ["image-download", "图片批量下载", "挑选网页图片批量保存", "图片", "📥"],
+  ["watermark-remove", "去水印", "图片水印处理", "图片", "💧"],
+  ["pdf-merge", "PDF 合并", "多个 PDF 合成一个", "PDF", "📄"],
+  ["pdf-split", "PDF 拆分", "按页码范围拆分", "PDF", "✂️"],
+  ["pdf-compress", "PDF 压缩", "结构优化减小体积", "PDF", "🗜️"],
+  ["pdf-images", "PDF 转图片", "导出为 PNG / JPG", "PDF", "🖼️"],
+  ["images-pdf", "图片转 PDF", "将多张图片合成 PDF", "PDF", "📑"],
+  ["word-count", "字数统计", "字符 / 词 / 行", "文本", "🔢"],
+  ["markdown-preview", "Markdown 预览", "实时渲染", "文本", "📝"],
+  ["html-format", "HTML 格式化", "HTML / CSS / JS 美化压缩", "文本", "</>"],
+  ["ai-summary", "AI 总结", "总结选中文本或当前页面", "AI", "🤖"],
+  ["translate", "翻译", "划词 / 整页多语互译", "AI", "🌐"],
+  ["text-polish", "文本润色", "清理空行与冗余空格", "AI", "✨"],
+  ["color-picker", "取色器", "屏幕取色 / 格式转换", "设计", "🎨"],
+  ["qr-code", "QR Code", "生成二维码", "设计", "▦"],
+  ["screen-capture", "网页截图/录屏", "整页 / 区域截图与录屏", "设计", "📸"],
+  ["json-yaml", "JSON 转 YAML", "结构化互转", "开发", "🔄"],
+  ["base64", "Base64 编解码", "编码 / 解码", "开发", "🔐"],
+  ["jwt", "JWT 解析", "查看 Payload 与过期时间", "开发", "🪪"],
+  ["request-headers", "请求头查看", "查看你的请求头", "网络", "📡"],
+  ["dns", "DNS 查询", "A / AAAA / CNAME / MX", "网络", "🌍"],
+  ["unit-convert", "单位换算", "长度 / 重量 / 温度 / 数据", "其他", "📊"],
+  ["password-generator", "密码生成", "强随机密码", "其他", "🔑"],
+] as const;
+for (const [id, title, description, category, icon] of plannedTools) {
+  tools.push({
+    id,
+    title,
+    description,
+    category,
+    icon,
+    keywords: [id, title, description],
+    processing: "local",
+    comingSoon: true,
+    load: () => import("../components/ComingSoon.vue"),
+  });
+}
+tools.push({
+  id: "json-compress",
+  title: "JSON 压缩",
+  description: "移除空白字符，保留原始数据",
+  category: "开发",
+  icon: "{}",
+  keywords: ["json", "压缩", "minify"],
+  processing: "local",
+  load: () => import("../tools/json/ToolView.vue"),
+});
 export function searchTools(query: string, category = "全部") {
   const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   return tools.filter(

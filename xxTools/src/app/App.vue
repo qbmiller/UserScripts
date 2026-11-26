@@ -18,6 +18,8 @@ const section = ref("工具箱");
 const query = ref("");
 const category = ref("全部");
 const activeId = ref("");
+const toolNotice = ref("");
+let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 const visited = ref<string[]>([]);
 const searchInput = ref<HTMLInputElement | null>(null);
 const activeTool = computed(() =>
@@ -42,7 +44,17 @@ const recent = computed(() =>
     .filter((tool): tool is NonNullable<typeof tool> => !!tool),
 );
 function open(id: string) {
-  if (!tools.some((tool) => tool.id === id)) return;
+  const tool = tools.find((tool) => tool.id === id);
+  if (!tool) return;
+  clearTimeout(noticeTimer);
+  if (tool.comingSoon) {
+    toolNotice.value = "正在开发中，敬请期待";
+    noticeTimer = setTimeout(() => {
+      toolNotice.value = "";
+    }, 3000);
+    return;
+  }
+  toolNotice.value = "";
   activeId.value = id;
   if (!visited.value.includes(id)) visited.value.push(id);
   recordUse(id);
@@ -69,10 +81,16 @@ onMounted(() => {
   void loadPreferences();
   window.addEventListener("keydown", keyboard);
 });
-onUnmounted(() => window.removeEventListener("keydown", keyboard));
+onUnmounted(() => {
+  window.removeEventListener("keydown", keyboard);
+  clearTimeout(noticeTimer);
+});
 </script>
 <template>
   <div class="app-shell">
+    <div v-if="toolNotice" class="tool-notice" role="status" aria-live="polite">
+      {{ toolNotice }}
+    </div>
     <header class="app-header">
       <button class="brand" @click="navigate('工具箱')">
         <span class="brand-mark">xx</span
