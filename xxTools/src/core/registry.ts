@@ -12,6 +12,16 @@ export interface ToolDefinition {
 }
 export const tools: ToolDefinition[] = [
   {
+    id: "github-download",
+    title: "GitHub 勾选下载",
+    description: "选中文件与文件夹，打包下载 ZIP",
+    category: "开发",
+    icon: "↓",
+    keywords: ["github", "gitzip", "zip", "下载", "文件夹", "仓库"],
+    processing: "local",
+    load: () => import("../tools/github-download/ToolView.vue"),
+  },
+  {
     id: "tab-restore",
     title: "挂起标签恢复",
     description: "找回被挂起链接藏住的网页",

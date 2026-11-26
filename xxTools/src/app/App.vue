@@ -134,8 +134,9 @@ onUnmounted(() => window.removeEventListener("keydown", keyboard));
                 class="recent-card"
                 @click="open(tool.id)"
               >
-                <span class="mini-icon" :class="tool.id">{{ tool.icon }}</span
-                ><span>{{ tool.title }}</span
+                <span class="mini-icon" :class="tool.id">{{
+                  tool.icon
+                }}</span><span>{{ tool.title }}</span
                 ><span class="recent-arrow">↗</span>
               </button>
             </div>
@@ -161,8 +162,7 @@ onUnmounted(() => window.removeEventListener("keydown", keyboard));
                 : section === "我的工具"
                   ? "已收藏工具"
                   : "全部工具"
-            }}</span
-            ><span>{{ matches.length }} 个工具</span>
+            }}</span><span>{{ matches.length }} 个工具</span>
           </div>
           <section v-for="group in groups" :key="group.name" class="tool-group">
             <h2>{{ group.name }}</h2>
@@ -261,7 +261,7 @@ onUnmounted(() => window.removeEventListener("keydown", keyboard));
           <div class="about-card">
             <span class="brand-mark">拾</span
             ><strong>拾用 · 浏览器工具箱</strong
-            ><span>2.0.0 · 一点点，积攒顺手的工具</span>
+            ><span>2.1.0 · 一点点，积攒顺手的工具</span>
           </div>
         </section>
       </template>
@@ -273,8 +273,7 @@ onUnmounted(() => window.removeEventListener("keydown", keyboard));
         :class="{ active: section === name }"
         @click="navigate(String(name))"
       >
-        <span>{{ icon }}</span
-        >{{ name }}
+        <span>{{ icon }}</span>{{ name }}
       </button>
     </footer>
   </div>
