@@ -4,7 +4,7 @@
 // @description       Display notification repository info and Star controls on repository subpages
 // @description:zh-CN 在通知页面显示仓库信息，在仓库子页面显示 Star 状态并支持直接操作
 // @namespace         https://github.com/ChinaGodMan/UserScripts
-// @version           1.0.8
+// @version           1.0.9
 // @author            人民的勤务员 <china.qinwuyuan@gmail.com>
 // @match             https://github.com/notifications*
 // @match             https://github.com/*/*
@@ -558,6 +558,23 @@
             try { visit(JSON.parse(script.textContent)); } catch { /* 非仓库数据 */ }
         }
 
+        // TanStack 新版主页把数据序列化为 JS 流，而不是 JSON 或表单。
+        // 只读取仓库 star 对象中的布尔值，绝不执行远端脚本。
+        if (!starData) {
+            for (const script of doc.querySelectorAll('script:not([src])')) {
+                const source = script.textContent;
+                if (!source.trimStart().startsWith('$_TSR.router=')) continue;
+                const star = source.match(/\bstar:\s*(?:\$R\[\d+\]\s*=\s*)?\{\s*viewerHasStarred:\s*(![01]|true|false)\s*,\s*canStar:\s*(![01]|true|false)\s*\}/);
+                if (!star) continue;
+                const isTrue = value => value === '!0' || value === 'true';
+                return {
+                    loggedIn, starred: isTrue(star[1]), canStar: isTrue(star[2]),
+                    count: Number(source.match(/\bstargazerCount:\s*(\d+)\b/)?.[1] ?? NaN),
+                    verifiedFetch: true
+                };
+            }
+        }
+
         // action 可能是绝对 URL、含查询参数或大小写与当前 URL 不同。
         const forms = [...doc.querySelectorAll('form[action]')];
         const findForm = (action) => forms.find(form => {
@@ -596,20 +613,24 @@
     async function loadRepositoryStar(repoKey) {
         // 登录后的新版 TanStack 页面不再输出 application/json 仓库数据，
         // 直接读取 GitHub 自己使用的 sidebar 接口，避免解析或执行流式脚本。
-        const sidebarResponse = await fetch(`/${repoKey}/_sidebar/about`, {
-            credentials: 'same-origin', cache: 'no-store',
-            headers: { Accept: 'application/json', 'GitHub-Verified-Fetch': 'true' },
-            signal: AbortSignal.timeout(15000)
-        });
-        if (sidebarResponse.ok && sidebarResponse.headers.get('content-type')?.includes('application/json')) {
-            const about = await sidebarResponse.json();
-            if (typeof about?.star?.viewerHasStarred === 'boolean') {
-                return {
-                    loggedIn: Boolean(about.viewer?.isLoggedIn),
-                    starred: about.star.viewerHasStarred, canStar: about.star.canStar,
-                    count: about.stargazerCount, verifiedFetch: true
-                };
+        try {
+            const sidebarResponse = await fetch(`/${repoKey}/_sidebar/about`, {
+                credentials: 'same-origin', cache: 'no-store',
+                headers: { Accept: 'application/json', 'GitHub-Verified-Fetch': 'true' },
+                signal: AbortSignal.timeout(15000)
+            });
+            if (sidebarResponse.ok && sidebarResponse.headers.get('content-type')?.includes('application/json')) {
+                const about = await sidebarResponse.json();
+                if (typeof about?.star?.viewerHasStarred === 'boolean') {
+                    return {
+                        loggedIn: Boolean(about.viewer?.isLoggedIn),
+                        starred: about.star.viewerHasStarred, canStar: about.star.canStar !== false,
+                        count: about.stargazerCount, verifiedFetch: true
+                    };
+                }
             }
+        } catch (error) {
+            console.debug('GitHub Star: falling back to repository page', error);
         }
         // 兼容尚未使用新版接口的仓库布局。
         const response = await fetch(`/${repoKey}`, {
