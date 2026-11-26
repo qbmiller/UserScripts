@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { preferences } from "../core/storage";
+import { trashRequest } from "./trash-client.mjs";
 import {
   deletionSize,
   editBookmark,
@@ -49,7 +50,7 @@ async function submit() {
   busy.value = true;
   error.value = "";
   try {
-    await editBookmark(chrome.bookmarks, {
+    const operation = {
       type: action.value,
       id: props.node.id,
       title: title.value,
@@ -57,11 +58,13 @@ async function submit() {
       parentId: parentId.value,
       beforeId: beforeId.value,
       snapshot,
-    });
+    };
+    if (action.value === "delete") await trashRequest("delete", operation);
+    else await editBookmark(chrome.bookmarks, operation);
     emit(
       "saved",
       action.value === "delete"
-        ? "已删除。"
+        ? "已移入回收站，可在 30 天内恢复。"
         : action.value === "move"
           ? "已移动，浏览器书签已同步。"
           : "已保存，浏览器书签已同步。",
@@ -169,7 +172,7 @@ onUnmounted(() => dialog.value?.close());
           个子文件夹。
         </p>
         <p v-else>将从浏览器收藏夹中删除这个书签。</p>
-        <p>此操作直接影响浏览器书签，工具箱不提供撤销。</p>
+        <p>先移入本机回收站，可在 30 天内恢复；超过 30 天的记录会自动清理。</p>
       </div>
       <p v-if="error" role="alert" class="error-message">{{ error }}</p>
       <div class="actions editor-actions">

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import BookmarkEditor from "./BookmarkEditor.vue";
+import BookmarkTrash from "./BookmarkTrash.vue";
+import { trashRequest } from "./trash-client.mjs";
 import { preferences, setSkipBookmarkDeleteConfirm } from "../core/storage";
 import { canEditBookmark, editBookmark, moveFolders } from "./edit.mjs";
 import {
@@ -112,12 +114,11 @@ async function manage(node: Node, action: "rename" | "delete" = "rename") {
       notice.value = "";
       error.value = "";
       try {
-        await editBookmark(chrome.bookmarks, {
-          type: "delete",
+        await trashRequest("delete", {
           id: original.id,
           snapshot: JSON.stringify(original),
         });
-        await saved("已删除。");
+        await saved("已移入回收站，可在 30 天内恢复。");
       } catch (cause) {
         error.value =
           cause instanceof Error ? cause.message : "删除失败，请重试。";
@@ -257,27 +258,32 @@ onUnmounted(() => {
       <span class="eyebrow">浏览器收藏 · 随时找回</span>
       <div class="bookmark-title">
         <h1>收藏的，随手打开。</h1>
-        <button class="text-button" aria-label="刷新收藏夹" @click="reload">
-          刷新
-        </button>
+        <div class="bookmark-heading-actions">
+          <label
+            v-if="mode !== 'trash'"
+            class="bookmark-delete-toggle"
+            for="skip-bookmark-delete-confirm"
+            ><span>删除不再确认</span
+            ><input
+              id="skip-bookmark-delete-confirm"
+              type="checkbox"
+              role="switch"
+              :checked="preferences.skipBookmarkDeleteConfirm"
+              :disabled="moving"
+              @change="
+                setSkipBookmarkDeleteConfirm(
+                  ($event.target as HTMLInputElement).checked,
+                )
+              "
+          /></label>
+          <button class="text-button" aria-label="刷新收藏夹" @click="reload">
+            刷新
+          </button>
+        </div>
       </div>
       <p>共 {{ all.length }} 个书签，沿着目录找，或按网站看看。</p>
     </div>
-    <label class="bookmark-delete-toggle" for="skip-bookmark-delete-confirm"
-      ><span>删除不再确认</span
-      ><input
-        id="skip-bookmark-delete-confirm"
-        type="checkbox"
-        role="switch"
-        :checked="preferences.skipBookmarkDeleteConfirm"
-        :disabled="moving"
-        @change="
-          setSkipBookmarkDeleteConfirm(
-            ($event.target as HTMLInputElement).checked,
-          )
-        "
-    /></label>
-    <div class="search-box">
+    <div v-if="mode !== 'trash'" class="search-box">
       <span aria-hidden="true">⌕</span
       ><input
         v-model="query"
@@ -306,13 +312,21 @@ onUnmounted(() => {
       >
         按网站分组
       </button>
+      <button
+        :class="{ active: mode === 'trash' }"
+        :aria-pressed="mode === 'trash'"
+        @click="chooseMode('trash')"
+      >
+        回收站
+      </button>
     </nav>
     <p v-if="error" role="alert" class="error-message">{{ error }}</p>
     <p v-if="notice" role="status" class="success-message">{{ notice }}</p>
     <p v-if="loading" class="empty-state" role="status">
       正在读取浏览器收藏夹…
     </p>
-    <template v-else>
+    <BookmarkTrash v-if="mode === 'trash'" @restored="reload" />
+    <template v-else-if="!loading">
       <nav
         v-if="mode === 'folders' && !query.trim()"
         class="bookmark-breadcrumb"
@@ -521,9 +535,8 @@ onUnmounted(() => {
 .bookmark-delete-toggle {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 10px;
-  margin-top: 16px;
+  white-space: nowrap;
   font-size: 11px;
   color: #819176;
   cursor: pointer;
@@ -656,8 +669,16 @@ onUnmounted(() => {
   background: #f0f5ec;
   border-color: #bdcfb8;
 }
+.bookmark-heading-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-left: auto;
+}
 .bookmark-title {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;

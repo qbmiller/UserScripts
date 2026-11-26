@@ -46,7 +46,7 @@ export function deletionSize(node) {
   walk(node);
   return { bookmarks, folders };
 }
-export async function editBookmark(api, operation) {
+export async function editBookmark(api, operation, recycle) {
   const tree = await api.getTree();
   const nodes = indexBookmarks(tree);
   const node = nodes.get(operation.id);
@@ -88,7 +88,8 @@ export async function editBookmark(api, operation) {
     // 确认后重新比较快照，避免确认期间新增的子书签一并被删。
     if (JSON.stringify(node) !== operation.snapshot)
       throw new Error("此项在确认期间发生变化，请取消后重新确认删除。");
-    return node.url ? api.remove(node.id) : api.removeTree(node.id);
+    if (!recycle) throw new Error("请通过回收站删除书签。");
+    return recycle(node);
   }
   throw new Error("未知的书签操作。");
 }

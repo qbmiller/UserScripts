@@ -117,20 +117,29 @@ test("移动选择目标前/末尾，校验过期位置", async () => {
 test("删除书签或文件夹，并拒绝确认后已变化的快照", async () => {
   const { tree, api, calls } = setup();
   const folder = tree[0].children[0].children[0];
+  const recycle = async (node) => calls.push(["recycle", node.id]);
   assert.deepEqual(deletionSize(folder), { bookmarks: 1, folders: 2 });
-  await editBookmark(api, {
-    type: "delete",
-    id: "2",
-    snapshot: JSON.stringify(folder),
-  });
-  await editBookmark(api, {
-    type: "delete",
-    id: "3",
-    snapshot: JSON.stringify(folder.children[0]),
-  });
+  await editBookmark(
+    api,
+    {
+      type: "delete",
+      id: "2",
+      snapshot: JSON.stringify(folder),
+    },
+    recycle,
+  );
+  await editBookmark(
+    api,
+    {
+      type: "delete",
+      id: "3",
+      snapshot: JSON.stringify(folder.children[0]),
+    },
+    recycle,
+  );
   assert.deepEqual(calls, [
-    ["removeTree", "2"],
-    ["remove", "3"],
+    ["recycle", "2"],
+    ["recycle", "3"],
   ]);
   await assert.rejects(
     editBookmark(api, { type: "delete", id: "2", snapshot: "{}" }),
