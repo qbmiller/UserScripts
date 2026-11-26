@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { getOriginalUrl } from "../../core/transforms.mjs";
 import ResultPanel from "../../components/ResultPanel.vue";
+import { preferences, setAutoRestore } from "../../core/storage";
 const input = ref("");
 const target = computed(() => getOriginalUrl(input.value.trim()) || "");
 const busy = ref(false);
@@ -39,6 +40,19 @@ async function openTarget() {
 }
 </script>
 <template>
+  <div class="setting-card">
+    <label for="tab-restore-enabled"
+      ><strong>自动恢复当前挂起标签</strong>
+      <small>关闭后不再自动恢复，仍可手动点击恢复。</small></label
+    >
+    <input
+      id="tab-restore-enabled"
+      type="checkbox"
+      role="switch"
+      :checked="preferences.autoRestore"
+      @change="setAutoRestore(($event.target as HTMLInputElement).checked)"
+    />
+  </div>
   <div class="callout">
     <span class="callout-icon">↗</span>
     <div>

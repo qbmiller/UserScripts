@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import TokenSettings from "./TokenSettings.vue";
+import SelectionSwitch from "./SelectionSwitch.vue";
 const error = ref("");
 async function openGitHub() {
   try {
@@ -11,6 +12,7 @@ async function openGitHub() {
 }
 </script>
 <template>
+  <SelectionSwitch />
   <div class="callout">
     <span class="callout-icon">↓</span>
     <div>

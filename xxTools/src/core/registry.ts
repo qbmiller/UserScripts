@@ -12,6 +12,26 @@ export interface ToolDefinition {
 }
 export const tools: ToolDefinition[] = [
   {
+    id: "zhihu-reader",
+    title: "知乎阅读增强",
+    description: "专栏文章目录、章节跳转与阅读位置高亮",
+    category: "浏览器",
+    icon: "☷",
+    keywords: ["知乎", "zhihu", "专栏", "阅读", "目录", "章节"],
+    processing: "local",
+    load: () => import("../tools/zhihu-toc/ToolView.vue"),
+  },
+  {
+    id: "wechat-reader",
+    title: "公众号阅读增强",
+    description: "文章目录、图片放大，让公众号更好读",
+    category: "浏览器",
+    icon: "☷",
+    keywords: ["微信", "公众号", "wechat", "阅读", "目录", "图片", "链接"],
+    processing: "local",
+    load: () => import("../tools/wechat-reader/ToolView.vue"),
+  },
+  {
     id: "github-download",
     title: "GitHub 勾选下载",
     description: "选中文件与文件夹，打包下载 ZIP",

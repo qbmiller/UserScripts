@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import BookmarkEditor from "./BookmarkEditor.vue";
+import { preferences, setSkipBookmarkDeleteConfirm } from "../core/storage";
+import { canEditBookmark, editBookmark, moveFolders } from "./edit.mjs";
 import {
   bookmarkTarget,
   flattenBookmarks,
@@ -16,6 +19,123 @@ const website = ref("");
 const limit = ref(100);
 const loading = ref(true);
 const error = ref("");
+const editing = ref<Node | null>(null);
+const editingAction = ref<"rename" | "delete">("rename");
+const notice = ref("");
+const dragging = ref("");
+const dropHint = ref("");
+const moving = ref(false);
+const destinations = computed(
+  () =>
+    new Set(moveFolders(tree.value, dragging.value).map((folder) => folder.id)),
+);
+function startDrag(event: DragEvent, node: Node) {
+  if (moving.value || !canEditBookmark(nodes.value.get(node.id))) {
+    event.preventDefault();
+    return;
+  }
+  dragging.value = node.id;
+  notice.value = "";
+  error.value = "";
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-xxtools-bookmark", node.id);
+    event.dataTransfer.setData("text/plain", node.title || "书签");
+  }
+}
+function endDrag() {
+  dragging.value = "";
+  dropHint.value = "";
+}
+function dragOver(event: DragEvent, parentId: string, key: string) {
+  if (!dragging.value || moving.value || !destinations.value.has(parentId))
+    return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  dropHint.value = key;
+}
+async function dropAt(event: DragEvent, parentId: string, beforeId = "") {
+  if (!dragging.value || moving.value || !destinations.value.has(parentId))
+    return;
+  event.preventDefault();
+  event.stopPropagation();
+  const id = dragging.value;
+  endDrag();
+  moving.value = true;
+  try {
+    await editBookmark(chrome.bookmarks, {
+      type: "move",
+      id,
+      parentId,
+      beforeId,
+    });
+    notice.value = "已移动，浏览器书签已同步。";
+    await reload();
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : "拖动失败，请重试。";
+  } finally {
+    moving.value = false;
+  }
+}
+function position(node: Node, after: boolean) {
+  const original = nodes.value.get(node.id);
+  const parentId = original?.parentId || "";
+  const siblings = (nodes.value.get(parentId)?.children || []).filter(
+    (item) => item.id !== dragging.value,
+  );
+  const index = siblings.findIndex((item) => item.id === node.id);
+  return {
+    parentId,
+    beforeId: after ? siblings[index + 1]?.id || "" : node.id,
+  };
+}
+function overPosition(event: DragEvent, node: Node, after: boolean) {
+  if (node.id === dragging.value) return;
+  dragOver(
+    event,
+    position(node, after).parentId,
+    `${node.id}-${after ? "after" : "before"}`,
+  );
+}
+function dropPosition(event: DragEvent, node: Node, after: boolean) {
+  if (node.id === dragging.value) return;
+  const target = position(node, after);
+  void dropAt(event, target.parentId, target.beforeId);
+}
+async function manage(node: Node, action: "rename" | "delete" = "rename") {
+  if (moving.value) return;
+  const original = nodes.value.get(node.id);
+  if (original && canEditBookmark(original)) {
+    if (action === "delete" && preferences.skipBookmarkDeleteConfirm) {
+      moving.value = true;
+      notice.value = "";
+      error.value = "";
+      try {
+        await editBookmark(chrome.bookmarks, {
+          type: "delete",
+          id: original.id,
+          snapshot: JSON.stringify(original),
+        });
+        await saved("已删除。");
+      } catch (cause) {
+        error.value =
+          cause instanceof Error ? cause.message : "删除失败，请重试。";
+      } finally {
+        moving.value = false;
+      }
+      return;
+    }
+    editingAction.value = action;
+    editing.value = JSON.parse(JSON.stringify(original));
+    notice.value = "";
+  }
+}
+async function saved(message: string) {
+  editing.value = null;
+  notice.value = message;
+  await reload();
+}
 let timer: ReturnType<typeof setTimeout> | undefined;
 let disposed = false;
 let revision = 0;
@@ -143,6 +263,20 @@ onUnmounted(() => {
       </div>
       <p>共 {{ all.length }} 个书签，沿着目录找，或按网站看看。</p>
     </div>
+    <label class="bookmark-delete-toggle" for="skip-bookmark-delete-confirm"
+      ><span>删除不再确认</span
+      ><input
+        id="skip-bookmark-delete-confirm"
+        type="checkbox"
+        role="switch"
+        :checked="preferences.skipBookmarkDeleteConfirm"
+        :disabled="moving"
+        @change="
+          setSkipBookmarkDeleteConfirm(
+            ($event.target as HTMLInputElement).checked,
+          )
+        "
+    /></label>
     <div class="search-box">
       <span aria-hidden="true">⌕</span
       ><input
@@ -174,6 +308,7 @@ onUnmounted(() => {
       </button>
     </nav>
     <p v-if="error" role="alert" class="error-message">{{ error }}</p>
+    <p v-if="notice" role="status" class="success-message">{{ notice }}</p>
     <p v-if="loading" class="empty-state" role="status">
       正在读取浏览器收藏夹…
     </p>
@@ -187,6 +322,9 @@ onUnmounted(() => {
           v-for="node in breadcrumbs"
           :key="node.id"
           @click="folderId = node.id"
+          :class="{ 'drop-active': dropHint === 'breadcrumb-' + node.id }"
+          @dragover="dragOver($event, node.id, 'breadcrumb-' + node.id)"
+          @drop="dropAt($event, node.id)"
         >
           {{ node.title || "全部收藏" }}<span>/</span>
         </button>
@@ -202,8 +340,7 @@ onUnmounted(() => {
             : mode === "folders"
               ? current?.title || "全部收藏"
               : website || "按域名分类"
-        }}</span
-        ><span>{{
+        }}</span><span>{{
           showGroups ? groups.length + " 个网站" : displayed.length + " 项"
         }}</span>
       </div>
@@ -235,33 +372,113 @@ onUnmounted(() => {
         </div>
       </template>
       <template v-else>
-        <button
+        <article
           v-for="node in displayed.slice(0, limit)"
           :key="node.id"
-          class="bookmark-row"
-          :aria-label="`${node.url ? '打开书签' : '打开文件夹'} ${node.title || '未命名文件夹'}`"
-          :title="node.url || node.title"
-          @click="open(node)"
+          class="bookmark-entry"
+          :data-bookmark-id="node.id"
+          :class="{
+            'is-dragging': dragging === node.id,
+            'drop-folder': dropHint === 'folder-' + node.id,
+          }"
+          :draggable="canEditBookmark(nodes.get(node.id)) && !moving"
+          @dragstart="startDrag($event, node)"
+          @dragend="endDrag"
         >
-          <span class="bookmark-icon" :class="{ folder: !node.url }">{{
-            node.url ? "↗" : "▱"
-          }}</span
-          ><span class="bookmark-copy"
-            ><strong>{{ node.title || node.url || "未命名文件夹" }}</strong
-            ><small>{{
-              node.url
-                ? websiteOf(node.url)
-                : (node.children?.length || 0) + " 项"
-            }}</small
-            ><small
-              v-if="node.url && (query || mode === 'sites')"
-              class="source-path"
-              >{{
-                "folders" in node ? (node.folders as string[]).join(" / ") : ""
+          <span
+            v-if="canEditBookmark(nodes.get(node.id))"
+            class="bookmark-grip"
+            title="按住拖动，移动或调整顺序"
+            aria-hidden="true"
+            >⠿</span
+          >
+          <div
+            v-if="dragging && node.id !== dragging"
+            class="bookmark-drop-line before"
+            :class="{ active: dropHint === node.id + '-before' }"
+            @dragover="overPosition($event, node, false)"
+            @drop="dropPosition($event, node, false)"
+          ></div>
+          <button
+            class="bookmark-row"
+            :aria-label="`${node.url ? '打开书签' : '打开文件夹'} ${node.title || '未命名文件夹'}`"
+            :title="node.url || node.title"
+            @click="open(node)"
+            @dragover="
+              !node.url
+                ? dragOver($event, node.id, 'folder-' + node.id)
+                : overPosition($event, node, false)
+            "
+            @drop="
+              !node.url
+                ? dropAt($event, node.id)
+                : dropPosition($event, node, false)
+            "
+          >
+            <span class="bookmark-icon" :class="{ folder: !node.url }">{{
+              node.url ? "↗" : "▱"
+            }}</span><span class="bookmark-copy"
+              ><strong>{{ node.title || node.url || "未命名文件夹" }}</strong
+              ><small>{{
+                node.url
+                  ? websiteOf(node.url)
+                  : (node.children?.length || 0) + " 项"
               }}</small
-            ></span
-          ><span class="bookmark-arrow">{{ node.url ? "↗" : "›" }}</span>
-        </button>
+              ><small
+                v-if="node.url && (query || mode === 'sites')"
+                class="source-path"
+                >{{
+                  "folders" in node
+                    ? (node.folders as string[]).join(" / ")
+                    : ""
+                }}</small
+              ></span
+            ><span class="bookmark-arrow">{{
+              node.url ? "↗" : "›"
+            }}</span></button
+          ><button
+            v-if="canEditBookmark(nodes.get(node.id))"
+            class="bookmark-menu"
+            :aria-label="`管理 ${node.title || '未命名书签'}`"
+            title="编辑、移动或删除"
+            :disabled="moving"
+            @click="manage(node)"
+          >
+            ⋯
+          </button>
+          <button
+            v-if="canEditBookmark(nodes.get(node.id))"
+            class="bookmark-delete"
+            :aria-label="`删除 ${node.title || '未命名书签'}`"
+            title="删除"
+            :disabled="moving"
+            draggable="false"
+            @click.stop="manage(node, 'delete')"
+          >
+            ×
+          </button>
+          <div
+            v-if="dragging && node.id !== dragging"
+            class="bookmark-drop-line after"
+            :class="{ active: dropHint === node.id + '-after' }"
+            @dragover="overPosition($event, node, true)"
+            @drop="dropPosition($event, node, true)"
+          ></div>
+        </article>
+        <div
+          v-if="
+            dragging &&
+            mode === 'folders' &&
+            !query.trim() &&
+            destinations.has(folderId)
+          "
+          class="bookmark-drop-end"
+          :class="{ active: dropHint === 'end' }"
+          @dragover="dragOver($event, folderId, 'end')"
+          @drop="dropAt($event, folderId)"
+        >
+          拖到这里，放在当前文件夹末尾
+        </div>
         <button
           v-if="displayed.length > limit"
           class="secondary-button full-width"
@@ -280,11 +497,165 @@ onUnmounted(() => {
           </p>
         </div>
       </template>
-      <p class="local-note">只在本机展示和分组，不移动或修改浏览器书签</p>
+      <p class="local-note">
+        {{
+          dragging
+            ? "拖到文件夹中移入，或拖到条目间调整顺序"
+            : moving
+              ? "正在移动…"
+              : "可拖动书签和文件夹；编辑操作会同步到浏览器"
+        }}
+      </p>
     </template>
+    <BookmarkEditor
+      v-if="editing"
+      :node="editing"
+      :initial-action="editingAction"
+      :tree="tree"
+      @close="editing = null"
+      @saved="saved"
+    />
   </section>
 </template>
 <style scoped>
+.bookmark-delete-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+  font-size: 11px;
+  color: #819176;
+  cursor: pointer;
+}
+.bookmark-delete-toggle input {
+  appearance: none;
+  position: relative;
+  width: 32px;
+  height: 19px;
+  border-radius: 20px;
+  background: #cbd3c5;
+  margin: 0;
+  cursor: pointer;
+}
+.bookmark-delete-toggle input:checked {
+  background: #467553;
+}
+.bookmark-delete-toggle input:before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.bookmark-delete-toggle input:checked:before {
+  transform: translateX(13px);
+}
+.bookmark-entry {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e2e8dc;
+  border-radius: 11px;
+  margin-bottom: 8px;
+}
+.bookmark-entry[draggable="true"] {
+  cursor: grab;
+}
+.bookmark-grip {
+  color: #a1b096;
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-left: 8px;
+  user-select: none;
+}
+.bookmark-entry[draggable="true"] .bookmark-row {
+  cursor: grab;
+}
+.bookmark-entry.is-dragging {
+  opacity: 0.4;
+}
+.bookmark-entry.drop-folder {
+  background: #e0efdc;
+  border-color: #528543;
+  box-shadow: 0 0 0 2px #8dbb7b40;
+}
+.bookmark-drop-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 12px;
+  z-index: 2;
+  border-radius: 5px;
+}
+.bookmark-drop-line.before {
+  top: -7px;
+}
+.bookmark-drop-line.after {
+  bottom: -7px;
+}
+.bookmark-drop-line.active {
+  background: #4b8140;
+  height: 5px;
+}
+.bookmark-drop-end {
+  padding: 18px 12px;
+  border: 2px dashed #b4caaa;
+  border-radius: 9px;
+  margin: 12px 0;
+  color: #7a956a;
+  text-align: center;
+  font-size: 11px;
+}
+.bookmark-drop-end.active,
+.bookmark-breadcrumb .drop-active {
+  background: #e0efdc;
+  border-color: #528543;
+  color: #315f45;
+}
+.bookmark-entry .bookmark-row {
+  border: 0;
+  margin: 0;
+  background: transparent;
+  flex: 1;
+  min-width: 0;
+}
+.bookmark-menu {
+  margin-right: 7px;
+  padding: 8px;
+  flex-shrink: 0;
+  font-size: 22px;
+  color: #7c9271;
+  line-height: 1;
+  border-radius: 7px;
+}
+.bookmark-menu:hover {
+  background: #e9f0e2;
+}
+.bookmark-delete {
+  flex-shrink: 0;
+  margin-right: 9px;
+  padding: 6px;
+  width: 28px;
+  height: 32px;
+  border-radius: 7px;
+  font-size: 20px;
+  line-height: 1;
+  color: #9ba692;
+}
+.bookmark-delete:hover {
+  color: #a94f3f;
+  background: #faeae5;
+}
+.bookmark-entry:hover {
+  background: #f0f5ec;
+  border-color: #bdcfb8;
+}
 .bookmark-title {
   display: flex;
   align-items: center;

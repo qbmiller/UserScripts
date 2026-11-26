@@ -75,8 +75,8 @@ onUnmounted(() => window.removeEventListener("keydown", keyboard));
   <div class="app-shell">
     <header class="app-header">
       <button class="brand" @click="navigate('工具箱')">
-        <span class="brand-mark">拾</span
-        ><span>拾用<small>让小事，顺手一点。</small></span></button
+        <span class="brand-mark">xx</span
+        ><span>xxTools<small>让小事，顺手一点。</small></span></button
       ><button
         class="icon-button"
         aria-label="打开设置"
@@ -261,9 +261,9 @@ onUnmounted(() => window.removeEventListener("keydown", keyboard));
             </button>
           </div>
           <div class="about-card">
-            <span class="brand-mark">拾</span
-            ><strong>拾用 · 浏览器工具箱</strong
-            ><span>2.2.0 · 一点点，积攒顺手的工具</span>
+            <span class="brand-mark">xx</span
+            ><strong>xxTools · 浏览器工具箱</strong
+            ><span>2.3.0 · 一点点，积攒顺手的工具</span>
           </div>
         </section>
       </template>

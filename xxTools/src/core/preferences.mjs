@@ -9,6 +9,7 @@ export function normalizePreferences(value) {
     version: 1,
     autoRestore:
       typeof data.autoRestore === "boolean" ? data.autoRestore : true,
+    skipBookmarkDeleteConfirm: data.skipBookmarkDeleteConfirm === true,
     favorites: strings(data.favorites),
     recent: strings(data.recent).slice(0, 6),
   };
@@ -19,7 +20,8 @@ export function updateRecent(recent, id) {
 export function isPreferenceChange(change) {
   return (
     change &&
-    ((change.type === "autoRestore" && typeof change.value === "boolean") ||
+    ((["autoRestore", "skipBookmarkDeleteConfirm"].includes(change.type) &&
+      typeof change.value === "boolean") ||
       (["favorite", "recent"].includes(change.type) &&
         typeof change.id === "string" &&
         /^[a-z][a-z0-9-]{0,63}$/.test(change.id)) ||
@@ -30,6 +32,8 @@ export function applyPreferenceChange(value, change) {
   if (!isPreferenceChange(change)) throw new Error("无效的设置操作。");
   const next = normalizePreferences(value);
   if (change.type === "autoRestore") next.autoRestore = change.value;
+  if (change.type === "skipBookmarkDeleteConfirm")
+    next.skipBookmarkDeleteConfirm = change.value;
   if (change.type === "favorite")
     next.favorites = next.favorites.includes(change.id)
       ? next.favorites.filter((id) => id !== change.id)

@@ -2,6 +2,7 @@
 
 help:
 	@echo "make build    构建 Chrome 扩展 ZIP"
+	@echo "              解压目录：xxTools/.output/chrome-mv3（重新加载此目录即可）"
 	@echo "make test     测试与类型检查"
 	@echo "make publish  输入 tag、title，构建并发布 GitHub Release"
 	@echo "make publish DRY_RUN=1  构建并预览，不创建 Release"

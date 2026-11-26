@@ -66,3 +66,6 @@ export const setAutoRestore = (value: boolean) => {
 export const clearRecent = () => {
   void client.change({ type: "clearRecent" });
 };
+export const setSkipBookmarkDeleteConfirm = (value: boolean) => {
+  void client.change({ type: "skipBookmarkDeleteConfirm", value });
+};
