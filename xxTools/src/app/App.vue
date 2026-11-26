@@ -210,7 +210,7 @@ onUnmounted(() => {
             </p>
           </div>
           <p class="local-note">
-            <span>◉</span> 这些工具在本地处理，内容无需上传
+            <span>◉</span> 本地工具无需上传内容，联网工具会在页面说明
           </p>
         </section>
         <section v-if="activeTool" class="tool-detail-heading">
@@ -223,7 +223,9 @@ onUnmounted(() => {
             }}</span>
             <div>
               <h1>{{ activeTool.title }}</h1>
-              <span class="local-badge">本地处理</span>
+              <span class="local-badge">{{
+                activeTool.processing === "network" ? "联网查询" : "本地处理"
+              }}</span>
             </div>
             <button
               class="favorite-button"

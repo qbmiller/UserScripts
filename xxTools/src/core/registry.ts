@@ -7,11 +7,21 @@ export interface ToolDefinition {
   category: string;
   icon: string;
   keywords: string[];
-  processing: "local";
+  processing: "local" | "network";
   comingSoon?: boolean;
   load: () => Promise<{ default: Component }>;
 }
 export const tools: ToolDefinition[] = [
+  {
+    id: "request-headers",
+    title: "请求头查看",
+    description: "查看你的请求头",
+    category: "网络",
+    icon: "📡",
+    keywords: ["headers", "http", "请求头", "user-agent", "httpbin"],
+    processing: "network",
+    load: () => import("../tools/request-headers/ToolView.vue"),
+  },
   {
     id: "zhihu-reader",
     title: "知乎阅读增强",
@@ -73,6 +83,16 @@ export const tools: ToolDefinition[] = [
     load: () => import("../tools/url-codec/ToolView.vue"),
   },
 ];
+tools.push({
+  id: "word-count",
+  title: "字数统计",
+  description: "字符 / 词 / 行",
+  category: "文本",
+  icon: "🔢",
+  keywords: ["word-count", "统计字数", "字数", "字符", "单词", "行数"],
+  processing: "local",
+  load: () => import("../tools/word-count/ToolView.vue"),
+});
 // 只登记入口，不加载尚未实现的引擎，也不申请额外权限。
 const plannedTools = [
   ["image-compress", "图片压缩", "JPG / PNG / WebP", "图片", "🖼️"],
@@ -84,7 +104,6 @@ const plannedTools = [
   ["pdf-compress", "PDF 压缩", "结构优化减小体积", "PDF", "🗜️"],
   ["pdf-images", "PDF 转图片", "导出为 PNG / JPG", "PDF", "🖼️"],
   ["images-pdf", "图片转 PDF", "将多张图片合成 PDF", "PDF", "📑"],
-  ["word-count", "字数统计", "字符 / 词 / 行", "文本", "🔢"],
   ["markdown-preview", "Markdown 预览", "实时渲染", "文本", "📝"],
   ["html-format", "HTML 格式化", "HTML / CSS / JS 美化压缩", "文本", "</>"],
   ["ai-summary", "AI 总结", "总结选中文本或当前页面", "AI", "🤖"],
@@ -96,7 +115,6 @@ const plannedTools = [
   ["json-yaml", "JSON 转 YAML", "结构化互转", "开发", "🔄"],
   ["base64", "Base64 编解码", "编码 / 解码", "开发", "🔐"],
   ["jwt", "JWT 解析", "查看 Payload 与过期时间", "开发", "🪪"],
-  ["request-headers", "请求头查看", "查看你的请求头", "网络", "📡"],
   ["dns", "DNS 查询", "A / AAAA / CNAME / MX", "网络", "🌍"],
   ["unit-convert", "单位换算", "长度 / 重量 / 温度 / 数据", "其他", "📊"],
   ["password-generator", "密码生成", "强随机密码", "其他", "🔑"],
