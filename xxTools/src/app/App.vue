@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import ToolCard from "../components/ToolCard.vue";
 import ToolHost from "../components/ToolHost.vue";
+import BookmarkView from "../bookmarks/BookmarkView.vue";
 import { tools, searchTools } from "../core/registry";
 import {
   preferences,
@@ -90,7 +91,7 @@ onUnmounted(() => window.removeEventListener("keydown", keyboard));
       </p>
       <div v-if="!storageStatus.ready" class="empty-state">正在准备工具…</div>
       <template v-else>
-        <section v-show="!activeId && section !== '设置'">
+        <section v-show="!activeId && ['工具箱', '我的工具'].includes(section)">
           <div class="page-heading">
             <span class="eyebrow">日常工具 · 就在手边</span>
             <h1>
@@ -227,6 +228,7 @@ onUnmounted(() => window.removeEventListener("keydown", keyboard));
         >
           <ToolHost :id="id" />
         </section>
+        <BookmarkView v-if="!activeId && section === '收藏夹'" />
         <section v-if="!activeId && section === '设置'" class="settings">
           <span class="eyebrow">使用偏好 · 由你决定</span>
           <h1>按你的习惯来。</h1>
@@ -261,14 +263,19 @@ onUnmounted(() => window.removeEventListener("keydown", keyboard));
           <div class="about-card">
             <span class="brand-mark">拾</span
             ><strong>拾用 · 浏览器工具箱</strong
-            ><span>2.1.0 · 一点点，积攒顺手的工具</span>
+            ><span>2.2.0 · 一点点，积攒顺手的工具</span>
           </div>
         </section>
       </template>
     </main>
     <footer class="bottom-nav">
       <button
-        v-for="(icon, name) in { 工具箱: '▦', 我的工具: '☆', 设置: '⚙' }"
+        v-for="(icon, name) in {
+          工具箱: '▦',
+          我的工具: '☆',
+          收藏夹: '▱',
+          设置: '⚙',
+        }"
         :key="name"
         :class="{ active: section === name }"
         @click="navigate(String(name))"
