@@ -58,6 +58,27 @@ npm run zip
 
 `npm run dev` 启动 WXT 开发环境；`npm run zip` 生成可分发 ZIP。测试通过 mock 验证 Chrome 标签、消息和设置行为；真实 Chrome 的扩展安装、侧栏开合及跨会话恢复仍需实际环境验证。
 
+## 发布到 GitHub Release
+
+在本目录运行：
+
+```sh
+make publish
+```
+
+依次输入 **tag** 和 **title**（回车使用默认值）。默认 tag 为 `xxTools-v<package.json 版本>`，默认 title 为 `xxTools <版本>`；tag 不会自动修改扩展版本。目标仓库从 Git `origin` 读取，当前为 `qbmiller/UserScripts`。
+
+需要先安装依赖、安装 GitHub CLI 并运行 `gh auth login --hostname github.com`。命令自动执行测试、类型检查和 ZIP 构建，将 `xxTools-<版本>-chrome.zip` 上传至草稿 Release，成功后公开。已存在的同名 Release 会报错，不覆盖附件。Release 指向当前 HEAD，需先将该提交推到 GitHub；不会自动 commit 或 push。工作区未提交内容会进入 ZIP，发布说明会标注，建议发布前提交相应改动。
+
+也可以显式传参或仅本地验证：
+
+```sh
+make publish TAG=xxTools-v2.1.0 TITLE='xxTools 2.1.0：GitHub 勾选下载'
+make publish DRY_RUN=1
+```
+
+`DRY_RUN=1` 仍执行验证和打包，但不连接 GitHub、不创建 tag/Release、不上传。打包结果在 `.output/release/`。可用环境变量 `NOTES` 指定发布说明，默认说明包含加载方法、版本和构建提交。如果上传或公开中断，先检查 GitHub 上的草稿；命令不会删除或覆盖已有 Release。
+
 ## 新增工具
 
 1. 新建 `src/tools/<tool-id>/ToolView.vue`，使用 `<script setup lang="ts">`。
