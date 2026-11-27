@@ -2,7 +2,17 @@ import { defineConfig } from "wxt";
 
 export default defineConfig({
   modules: ["@wxt-dev/module-vue"],
+  vite: () => ({
+    worker: { format: "es" },
+    optimizeDeps: {
+      exclude: ["@jsquash/jpeg", "@jsquash/webp", "@jsquash/oxipng"],
+    },
+  }),
   manifest: {
+    content_security_policy: {
+      extension_pages:
+        "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+    },
     name: "xxTools",
     description:
       "侧边栏工具箱：知乎文章目录、公众号阅读增强、GitHub 勾选下载、挂起标签恢复、JSON 格式化、加解码。",

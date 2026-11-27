@@ -12,6 +12,9 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
+    "@jsquash/jpeg": "^1.6.0",
+    "@jsquash/oxipng": "^2.3.0",
+    "@jsquash/webp": "^1.5.0",
     "css-tree": "^3.2.1",
     "culori": "^4.0.2",
     "html-minifier-terser": "^7.2.0",

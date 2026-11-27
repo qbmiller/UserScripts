@@ -13,6 +13,27 @@ export interface ToolDefinition {
 }
 export const tools: ToolDefinition[] = [
   {
+    id: "image-compress",
+    title: "图片压缩",
+    description: "本地批量压缩 JPG / PNG / WebP",
+    category: "图片",
+    icon: "🖼️",
+    keywords: [
+      "图片",
+      "压缩",
+      "image",
+      "compress",
+      "squoosh",
+      "jpg",
+      "png",
+      "webp",
+      "转换",
+      "缩放",
+    ],
+    processing: "local",
+    load: () => import("../tools/image-compress/ToolView.vue"),
+  },
+  {
     id: "color-picker",
     title: "取色器",
     description: "屏幕取色 / HEX · RGB · HSL",
@@ -201,7 +222,6 @@ tools.push({
 });
 // 只登记入口，不加载尚未实现的引擎，也不申请额外权限。
 const plannedTools = [
-  ["image-compress", "图片压缩", "JPG / PNG / WebP", "图片", "🖼️"],
   ["ocr", "OCR", "图片文字识别", "图片", "🔍"],
   ["image-download", "图片批量下载", "挑选网页图片批量保存", "图片", "📥"],
   ["watermark-remove", "去水印", "图片水印处理", "图片", "💧"],

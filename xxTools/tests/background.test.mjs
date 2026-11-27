@@ -4,6 +4,14 @@ import { registerUnsuspend } from "../src/features/unsuspend.mjs";
 const prefix =
   "chrome-extension://ahmkjjgdligadogjedmnogbpbcpofeeo/html/suspended.html#ttl=test&pos=992&uri=";
 const tick = () => new Promise((resolve) => setImmediate(resolve));
+test("关闭相邻标签后自动选中挂起标签，未点击恢复时不导航", async () => {
+  const tab = { id: 1, active: true, url: prefix + "https://example.com/a" };
+  const state = setup([tab]);
+  state.listeners.activated?.({ tabId: tab.id });
+  state.listeners.updated?.(tab.id, { status: "loading" }, tab);
+  await tick();
+  assert.deepEqual(state.updates, []);
+});
 function setup(tabs = [], enabled = true) {
   const listeners = {},
     updates = [],

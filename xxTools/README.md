@@ -4,6 +4,7 @@ WXT + Vue 3 + TypeScript 开发的 Chrome MV3 侧栏扩展，当前版本 2.3.0�
 
 ## 已有功能
 
+- 图片压缩：使用 [jSquash](https://github.com/jamsinclair/jSquash) 的 MozJPEG、WebP、Oxipng 编码器在本地 Worker 中处理静态 JPG / PNG / WebP。支持拖入/批量、调整质量、等比缩小、转换格式、前后预览、单张与 ZIP 下载，以及取消后重新处理。默认保持格式和尺寸，PNG 原尺寸模式直接无损优化原文件；JPG/WebP 使用有损编码，转 JPG 的透明区域填白。结果更大时明确提示。最多 50 张、原图合计 200 MiB、单张 40 MiB / 3200 万像素，暂不支持动画图。WASM 随扩展打包，不下载远程执行代码、不上传图片；第三方许可随扩展保存在 `licenses/image-compress.txt`。
 - 取色器：调用浏览器 EyeDropper 屏幕取色，支持颜色选择器、HEX / RGB / HSL 转换与复制；下方自动保存最近 10 个历史颜色，本地持久保存、去重前置，点击历史色可复用。不支持 EyeDropper 的环境可手动输入颜色。RGB/HSL 保留透明度，HEX 显示不含透明度的色值。
 - QR Code：使用开源 [qr-code-styling](https://github.com/kozakdenys/qr-code-styling) 本地生成中文、表情和链接二维码。提供经典黑白、简约渐变、蓝色圆点、紫色流光、森林叶片、暖橙方格六套预设；可自由配置码点、定位框、定位中心、前景/背景色、渐变色与方向，并在本地保存“我的样式”。生成后修改配置自动更新预览，支持 L/M/Q/H 纠错等级、256/512/1024 像素及 PNG/SVG 下载。预设独立定义在 `src/tools/qr-code/styles.mjs`，后续可直接扩展。
 - HTML 格式化：HTML / CSS / JS 独立输入与结果，支持美化、语法校验和压缩；HTML 保守压缩并保留注释，CSS 按语法树压缩，JS 不重命名变量，不执行输入代码。
@@ -62,7 +63,7 @@ WXT + Vue 3 + TypeScript 开发的 Chrome MV3 侧栏扩展，当前版本 2.3.0�
 
 无需安装 Node.js，也不需要构建源码。
 
-1. 在 [GitHub Releases](https://github.com/qbmiller/UserScripts/releases) 下载对应 xxTools 版本附件中的 `xxTools-<版本>-chrome.zip`，不要选择 GitHub 自动生成的 `Source code (zip)`。
+1. 在 [GitHub Releases](https://github.com/qbmiller/xxTools/releases) 下载对应 xxTools 版本附件中的 `xxTools-<版本>-chrome.zip`，不要选择 GitHub 自动生成的 `Source code (zip)`。
 2. **先解压 ZIP**，将解压后的文件夹放到固定位置。Chrome 会持续从这个目录读取扩展，安装后不要删除或移动它。
 3. 在 Chrome 地址栏打开 `chrome://extensions/`，开启右上角的「开发者模式」。
 4. 如果旧版 xxTools 或「Session Buddy 挂起链接恢复」仍启用，先停用旧版，避免重复运行。
@@ -152,7 +153,7 @@ npm run zip
 make publish
 ```
 
-依次输入 **tag** 和 **title**（回车使用默认值）。默认 tag 为 `xxTools-v<package.json 版本>`，默认 title 为 `xxTools <版本>`；tag 不会自动修改扩展版本。目标仓库从 Git `origin` 读取，当前为 `qbmiller/UserScripts`。
+依次输入 **tag** 和 **title**（回车使用默认值）。默认 tag 为 `xxTools-v<package.json 版本>`，默认 title 为 `xxTools <版本>`；tag 不会自动修改扩展版本。目标仓库从 Git `origin` 读取，当前为 `qbmiller/xxTools`。
 
 需要先安装依赖、安装 GitHub CLI 并运行 `gh auth login --hostname github.com`。命令自动执行测试、类型检查和 ZIP 构建，将 `xxTools-<版本>-chrome.zip` 上传至草稿 Release，成功后公开。已存在的同名 Release 会报错，不覆盖附件。Release 指向当前 HEAD，需先将该提交推到 GitHub；不会自动 commit 或 push。工作区未提交内容会进入 ZIP，发布说明会标注，建议发布前提交相应改动。
 
